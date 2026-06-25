@@ -1,0 +1,99 @@
+import 'package:hive_flutter/hive_flutter.dart';
+
+part 'user.g.dart';
+
+@HiveType(typeId: 0)
+class User extends HiveObject {
+  @HiveField(0)
+  String id;
+
+  @HiveField(1)
+  String name;
+
+  @HiveField(2)
+  String email;
+
+  @HiveField(3)
+  String? photo;
+
+  @HiveField(4)
+  DateTime? birthDate;
+
+  @HiveField(5)
+  String coupleId;
+
+  @HiveField(6)
+  String language;
+
+  @HiveField(7)
+  DateTime createdAt;
+
+  @HiveField(8)
+  DateTime updatedAt;
+
+  User({
+    required this.id,
+    required this.name,
+    required this.email,
+    this.photo,
+    this.birthDate,
+    required this.coupleId,
+    required this.language,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  User copyWith({
+    String? id,
+    String? name,
+    String? email,
+    String? photo,
+    DateTime? birthDate,
+    String? coupleId,
+    String? language,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return User(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      email: email ?? this.email,
+      photo: photo ?? this.photo,
+      birthDate: birthDate ?? this.birthDate,
+      coupleId: coupleId ?? this.coupleId,
+      language: language ?? this.language,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  factory User.fromJson(Map<String, dynamic> json) {
+    return User(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      email: json['email'] as String,
+      photo: json['photo'] as String?,
+      birthDate: json['birth_date'] != null
+          ? DateTime.parse(json['birth_date'] as String)
+          : null,
+      coupleId: json['couple_id'] as String,
+      language: json['language'] as String? ?? 'fr',
+      createdAt: DateTime.parse(json['created_at'] as String),
+      updatedAt: DateTime.parse(json['updated_at'] as String),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'email': email,
+      'photo': photo,
+      'birth_date': birthDate?.toIso8601String(),
+      'couple_id': coupleId,
+      'language': language,
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
+    };
+  }
+}
