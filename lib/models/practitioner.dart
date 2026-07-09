@@ -75,8 +75,8 @@ class Practitioner extends HiveObject {
 
   factory Practitioner.fromJson(Map<String, dynamic> json) {
     return Practitioner(
-      id: json['id'] as String,
-      coupleId: json['couple_id'] as String,
+      id: json['id'].toString(),
+      coupleId: json['couple_id'].toString(),
       name: json['name'] as String,
       specialty: json['specialty'] as String?,
       phone: json['phone'] as String?,

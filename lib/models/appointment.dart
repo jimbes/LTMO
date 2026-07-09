@@ -40,8 +40,10 @@ class Appointment extends HiveObject {
   @HiveField(11)
   bool completed;
 
+  // Minutes before the appointment to remind - can have several reminders
+  // (e.g. 24h before AND 12h before), not just one.
   @HiveField(12)
-  int reminderMinutesBefore;
+  List<int> reminderOffsets;
 
   @HiveField(13)
   DateTime createdAt;
@@ -62,7 +64,7 @@ class Appointment extends HiveObject {
     required this.notifyUser1,
     required this.notifyUser2,
     required this.completed,
-    required this.reminderMinutesBefore,
+    required this.reminderOffsets,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -80,7 +82,7 @@ class Appointment extends HiveObject {
     bool? notifyUser1,
     bool? notifyUser2,
     bool? completed,
-    int? reminderMinutesBefore,
+    List<int>? reminderOffsets,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -97,20 +99,35 @@ class Appointment extends HiveObject {
       notifyUser1: notifyUser1 ?? this.notifyUser1,
       notifyUser2: notifyUser2 ?? this.notifyUser2,
       completed: completed ?? this.completed,
-      reminderMinutesBefore: reminderMinutesBefore ?? this.reminderMinutesBefore,
+      reminderOffsets: reminderOffsets ?? this.reminderOffsets,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 
+  static DateTime _parseTimeOnDate(String timeStr, DateTime date) {
+    final parts = timeStr.split(':');
+    return DateTime(
+      date.year,
+      date.month,
+      date.day,
+      int.parse(parts[0]),
+      int.parse(parts[1]),
+    );
+  }
+
   factory Appointment.fromJson(Map<String, dynamic> json) {
+    // .toLocal() is required - see the same note in medication_schedule.dart.
+    final appointmentDate =
+        DateTime.parse(json['appointment_date'] as String).toLocal();
     return Appointment(
-      id: json['id'] as String,
-      coupleId: json['couple_id'] as String,
+      id: json['id'].toString(),
+      coupleId: json['couple_id'].toString(),
       title: json['title'] as String,
-      appointmentDate: DateTime.parse(json['appointment_date'] as String),
+      appointmentDate: appointmentDate,
       appointmentTime: json['appointment_time'] != null
-          ? DateTime.parse(json['appointment_time'] as String)
+          ? _parseTimeOnDate(
+              json['appointment_time'] as String, appointmentDate)
           : null,
       location: json['location'] as String?,
       doctorName: json['doctor_name'] as String?,
@@ -119,7 +136,10 @@ class Appointment extends HiveObject {
       notifyUser1: json['notify_user_1'] as bool? ?? true,
       notifyUser2: json['notify_user_2'] as bool? ?? true,
       completed: json['completed'] as bool? ?? false,
-      reminderMinutesBefore: json['reminder_before_minutes'] as int? ?? 60,
+      reminderOffsets: (json['reminder_offsets'] as List<dynamic>?)
+              ?.map((e) => e as int)
+              .toList() ??
+          [60],
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
     );
@@ -139,7 +159,7 @@ class Appointment extends HiveObject {
       'notify_user_1': notifyUser1,
       'notify_user_2': notifyUser2,
       'completed': completed,
-      'reminder_before_minutes': reminderMinutesBefore,
+      'reminder_offsets': reminderOffsets,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
     };

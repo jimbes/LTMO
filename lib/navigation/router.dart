@@ -1,11 +1,22 @@
+import 'dart:async';
 import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../theme/ltmo_colors.dart';
+import '../providers/data_refresh.dart';
+import '../providers/auth_provider.dart';
 import '../screens/home/home_screen.dart';
+import '../screens/auth/login_screen.dart';
+import '../screens/splash/splash_screen.dart';
 import '../screens/agenda/agenda_screen.dart';
 import '../screens/medications/treatment_list_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../screens/medications/add_medication_screen.dart';
+import '../screens/medications/edit_medication_screen.dart';
 import '../screens/appointments/add_appointment_screen.dart';
+import '../screens/appointments/edit_appointment_screen.dart';
+import '../screens/appointments/post_visit_update_screen.dart';
+import '../screens/appointments/all_appointments_screen.dart';
 import '../screens/journey/configure_journey_screen.dart';
 import '../screens/practitioners/practitioners_screen.dart';
 import '../screens/settings/notifications_settings_screen.dart';
@@ -13,9 +24,19 @@ import '../screens/settings/partner_sharing_screen.dart';
 import '../screens/settings/personal_info_screen.dart';
 
 final goRouter = GoRouter(
-  initialLocation: '/',
+  initialLocation: '/splash',
   debugLogDiagnostics: true,
   routes: [
+    GoRoute(
+      path: '/splash',
+      name: 'splash',
+      builder: (context, state) => const SplashScreen(),
+    ),
+    GoRoute(
+      path: '/login',
+      name: 'login',
+      builder: (context, state) => const LoginScreen(),
+    ),
     ShellRoute(
       builder: (context, state, child) => MainScaffold(child: child),
       routes: [
@@ -27,7 +48,9 @@ final goRouter = GoRouter(
         GoRoute(
           path: '/agenda',
           name: 'agenda',
-          builder: (context, state) => const AgendaScreen(),
+          builder: (context, state) => AgendaScreen(
+            initialDate: state.extra as DateTime?,
+          ),
         ),
         GoRoute(
           path: '/traitements',
@@ -47,11 +70,31 @@ final goRouter = GoRouter(
       name: 'add_medication',
       builder: (context, state) => const AddMedicationScreen(),
     ),
+    GoRoute(
+      path: '/medications/edit/:medicationId/:scheduleId',
+      name: 'edit_medication',
+      builder: (context, state) => EditMedicationScreen(
+        medicationId: state.pathParameters['medicationId'] ?? '',
+        scheduleId: state.pathParameters['scheduleId'] ?? '',
+      ),
+    ),
     // Appointment routes
     GoRoute(
       path: '/appointments/add',
       name: 'add_appointment',
       builder: (context, state) => const AddAppointmentScreen(),
+    ),
+    GoRoute(
+      path: '/appointments/edit/:appointmentId',
+      name: 'edit_appointment',
+      builder: (context, state) => EditAppointmentScreen(
+        appointmentId: state.pathParameters['appointmentId'] ?? '',
+      ),
+    ),
+    GoRoute(
+      path: '/appointments/post-visit',
+      name: 'post_visit_update',
+      builder: (context, state) => const PostVisitUpdateScreen(),
     ),
     // Journey routes
     GoRoute(
@@ -59,11 +102,17 @@ final goRouter = GoRouter(
       name: 'configure_journey',
       builder: (context, state) => const ConfigureJourneyScreen(),
     ),
-    // Practitioners routes
+    // Practitioners routes (kept, but no longer linked from the profile
+    // menu - unused in practice, replaced by the appointments list below)
     GoRoute(
       path: '/practitioners',
       name: 'practitioners',
       builder: (context, state) => const PractitionersScreen(),
+    ),
+    GoRoute(
+      path: '/appointments/all',
+      name: 'all_appointments',
+      builder: (context, state) => const AllAppointmentsScreen(),
     ),
     // Settings routes
     GoRoute(
@@ -84,17 +133,59 @@ final goRouter = GoRouter(
   ],
 );
 
-class MainScaffold extends StatefulWidget {
+/// Lets auth_provider.dart trigger a login redirect (e.g. on a 401 session
+/// expiry) without importing this file back, which would create a cycle
+/// (router -> screens -> auth_provider -> router). Called once from main().
+void wireAuthProviderNavigation() {
+  UserNotifier.navigateToLogin = () => goRouter.go('/login');
+}
+
+class MainScaffold extends ConsumerStatefulWidget {
   final Widget child;
 
   const MainScaffold({required this.child});
 
   @override
-  State<MainScaffold> createState() => _MainScaffoldState();
+  ConsumerState<MainScaffold> createState() => _MainScaffoldState();
 }
 
-class _MainScaffoldState extends State<MainScaffold> {
+class _MainScaffoldState extends ConsumerState<MainScaffold>
+    with WidgetsBindingObserver {
   int _selectedIndex = 0;
+  Timer? _refreshTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _startRefreshTimer();
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Only poll while the app is actually visible to the user - avoids
+    // wasting battery/data refreshing a backgrounded app.
+    if (state == AppLifecycleState.resumed) {
+      _startRefreshTimer();
+      refreshAllData(ref);
+    } else {
+      _refreshTimer?.cancel();
+    }
+  }
+
+  void _startRefreshTimer() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      refreshAllData(ref);
+    });
+  }
 
   void _onItemTapped(int index) {
     switch (index) {
@@ -123,41 +214,63 @@ class _MainScaffoldState extends State<MainScaffold> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: widget.child,
-      bottomNavigationBar: BottomNavigationBar(
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            activeIcon: Icon(Icons.home),
-            label: 'Accueil',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_today_outlined),
-            activeIcon: Icon(Icons.calendar_today),
-            label: 'Agenda',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.add),
-            label: '',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.medication_outlined),
-            activeIcon: Icon(Icons.medication),
-            label: 'Traitements',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            activeIcon: Icon(Icons.person),
-            label: 'Profil',
-          ),
-        ],
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
+      bottomNavigationBar: BottomAppBar(
+        color: Colors.white,
+        height: 70,
+        notchMargin: 10,
+        elevation: 4,
+        shape: const CircularNotchedRectangle(),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            Expanded(
+              child: _NavBarItem(
+                icon: Icons.home_outlined,
+                activeIcon: Icons.home,
+                label: 'Accueil',
+                isSelected: _selectedIndex == 0,
+                onTap: () => _onItemTapped(0),
+              ),
+            ),
+            Expanded(
+              child: _NavBarItem(
+                icon: Icons.calendar_today_outlined,
+                activeIcon: Icons.calendar_today,
+                label: 'Agenda',
+                isSelected: _selectedIndex == 1,
+                onTap: () => _onItemTapped(1),
+              ),
+            ),
+            const SizedBox(width: 56),
+            Expanded(
+              child: _NavBarItem(
+                icon: Icons.medication_outlined,
+                activeIcon: Icons.medication,
+                label: 'Traitements',
+                isSelected: _selectedIndex == 3,
+                onTap: () => _onItemTapped(3),
+              ),
+            ),
+            Expanded(
+              child: _NavBarItem(
+                icon: Icons.person_outline,
+                activeIcon: Icons.person,
+                label: 'Profil',
+                isSelected: _selectedIndex == 4,
+                onTap: () => _onItemTapped(4),
+              ),
+            ),
+          ],
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           _showAddActionSheet(context);
         },
-        child: const Icon(Icons.add),
+        backgroundColor: LtmoColors.sauge,
+        elevation: 6,
+        shape: const CircleBorder(),
+        child: const Icon(Icons.add, color: Colors.white, size: 28),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );
@@ -166,11 +279,19 @@ class _MainScaffoldState extends State<MainScaffold> {
   void _showAddActionSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.only(
+          left: 24,
+          right: 24,
+          top: 24,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 80,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -197,6 +318,55 @@ class _MainScaffoldState extends State<MainScaffold> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _NavBarItem extends StatelessWidget {
+  final IconData icon;
+  final IconData activeIcon;
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _NavBarItem({
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isSelected ? activeIcon : icon,
+            color: isSelected ? LtmoColors.sauge : const Color(0xFFB3AB9C),
+            size: 22,
+          ),
+          const SizedBox(height: 2),
+          SizedBox(
+            width: 50,
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 10,
+                color: isSelected ? LtmoColors.sauge : const Color(0xFFB3AB9C),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

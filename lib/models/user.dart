@@ -20,7 +20,7 @@ class User extends HiveObject {
   DateTime? birthDate;
 
   @HiveField(5)
-  String coupleId;
+  String? coupleId;
 
   @HiveField(6)
   String language;
@@ -37,7 +37,7 @@ class User extends HiveObject {
     required this.email,
     this.photo,
     this.birthDate,
-    required this.coupleId,
+    this.coupleId,
     required this.language,
     required this.createdAt,
     required this.updatedAt,
@@ -69,17 +69,21 @@ class User extends HiveObject {
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
-      id: json['id'] as String,
+      id: json['id'].toString(),
       name: json['name'] as String,
       email: json['email'] as String,
       photo: json['photo'] as String?,
       birthDate: json['birth_date'] != null
           ? DateTime.parse(json['birth_date'] as String)
           : null,
-      coupleId: json['couple_id'] as String,
+      coupleId: json['couple_id'] != null ? json['couple_id'].toString() : null,
       language: json['language'] as String? ?? 'fr',
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'] as String)
+          : DateTime.now(),
+      updatedAt: json['updated_at'] != null
+          ? DateTime.parse(json['updated_at'] as String)
+          : DateTime.now(),
     );
   }
 

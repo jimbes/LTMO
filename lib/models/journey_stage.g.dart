@@ -22,18 +22,23 @@ class JourneyStageAdapter extends TypeAdapter<JourneyStage> {
       type: fields[2] as String,
       startDate: fields[3] as DateTime,
       startTime: fields[4] as DateTime?,
+      endDate: fields[10] as DateTime?,
       status: fields[5] as String,
       reminderEnabled: fields[6] as bool,
       notes: fields[7] as String?,
       createdAt: fields[8] as DateTime,
       updatedAt: fields[9] as DateTime,
+      order: fields[11] as int,
+      durationDays: fields[12] as int?,
+      customName: fields[13] as String?,
+      manualEndDate: fields[14] as bool,
     );
   }
 
   @override
   void write(BinaryWriter writer, JourneyStage obj) {
     writer
-      ..writeByte(10)
+      ..writeByte(15)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -53,7 +58,17 @@ class JourneyStageAdapter extends TypeAdapter<JourneyStage> {
       ..writeByte(8)
       ..write(obj.createdAt)
       ..writeByte(9)
-      ..write(obj.updatedAt);
+      ..write(obj.updatedAt)
+      ..writeByte(10)
+      ..write(obj.endDate)
+      ..writeByte(11)
+      ..write(obj.order)
+      ..writeByte(12)
+      ..write(obj.durationDays)
+      ..writeByte(13)
+      ..write(obj.customName)
+      ..writeByte(14)
+      ..write(obj.manualEndDate);
   }
 
   @override

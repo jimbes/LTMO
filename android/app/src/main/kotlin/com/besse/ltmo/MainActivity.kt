@@ -1,4 +1,4 @@
-package com.pma.couples.pma_flutter
+package com.besse.ltmo
 
 import io.flutter.embedding.android.FlutterActivity
 

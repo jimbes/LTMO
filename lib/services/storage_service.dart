@@ -1,5 +1,5 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:pma_flutter/utils/constants.dart';
+import 'package:ltmo/utils/constants.dart';
 
 class StorageService {
   static const _storage = FlutterSecureStorage();

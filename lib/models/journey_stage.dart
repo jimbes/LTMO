@@ -34,17 +34,37 @@ class JourneyStage extends HiveObject {
   @HiveField(9)
   DateTime updatedAt;
 
+  @HiveField(10)
+  DateTime? endDate;
+
+  @HiveField(11)
+  int order;
+
+  @HiveField(12)
+  int? durationDays;
+
+  @HiveField(13)
+  String? customName;
+
+  @HiveField(14)
+  bool manualEndDate;
+
   JourneyStage({
     required this.id,
     required this.coupleId,
     required this.type,
     required this.startDate,
     this.startTime,
+    this.endDate,
     required this.status,
     required this.reminderEnabled,
     this.notes,
     required this.createdAt,
     required this.updatedAt,
+    this.order = 0,
+    this.durationDays,
+    this.customName,
+    this.manualEndDate = false,
   });
 
   JourneyStage copyWith({
@@ -53,11 +73,19 @@ class JourneyStage extends HiveObject {
     String? type,
     DateTime? startDate,
     DateTime? startTime,
+    DateTime? endDate,
+    bool clearEndDate = false,
     String? status,
     bool? reminderEnabled,
     String? notes,
     DateTime? createdAt,
     DateTime? updatedAt,
+    int? order,
+    int? durationDays,
+    bool clearDurationDays = false,
+    String? customName,
+    bool clearCustomName = false,
+    bool? manualEndDate,
   }) {
     return JourneyStage(
       id: id ?? this.id,
@@ -65,28 +93,42 @@ class JourneyStage extends HiveObject {
       type: type ?? this.type,
       startDate: startDate ?? this.startDate,
       startTime: startTime ?? this.startTime,
+      endDate: clearEndDate ? null : (endDate ?? this.endDate),
       status: status ?? this.status,
       reminderEnabled: reminderEnabled ?? this.reminderEnabled,
       notes: notes ?? this.notes,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      order: order ?? this.order,
+      durationDays:
+          clearDurationDays ? null : (durationDays ?? this.durationDays),
+      customName: clearCustomName ? null : (customName ?? this.customName),
+      manualEndDate: manualEndDate ?? this.manualEndDate,
     );
   }
 
   factory JourneyStage.fromJson(Map<String, dynamic> json) {
     return JourneyStage(
-      id: json['id'] as String,
-      coupleId: json['couple_id'] as String,
+      id: json['id'].toString(),
+      coupleId: json['couple_id'].toString(),
       type: json['type'] as String,
-      startDate: DateTime.parse(json['start_date'] as String),
+      // .toLocal() is required - see the same note in medication_schedule.dart.
+      startDate: DateTime.parse(json['start_date'] as String).toLocal(),
       startTime: json['start_time'] != null
           ? DateTime.parse(json['start_time'] as String)
+          : null,
+      endDate: json['end_date'] != null
+          ? DateTime.parse(json['end_date'] as String).toLocal()
           : null,
       status: json['status'] as String? ?? 'upcoming',
       reminderEnabled: json['reminder_enabled'] as bool? ?? true,
       notes: json['notes'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
+      order: json['order'] as int? ?? 0,
+      durationDays: json['duration_days'] as int?,
+      customName: json['custom_name'] as String?,
+      manualEndDate: json['manual_end_date'] as bool? ?? false,
     );
   }
 
@@ -95,8 +137,13 @@ class JourneyStage extends HiveObject {
       'id': id,
       'couple_id': coupleId,
       'type': type,
+      'custom_name': customName,
+      'order': order,
       'start_date': startDate.toIso8601String(),
       'start_time': startTime?.toIso8601String(),
+      'end_date': endDate?.toIso8601String(),
+      'duration_days': durationDays,
+      'manual_end_date': manualEndDate,
       'status': status,
       'reminder_enabled': reminderEnabled,
       'notes': notes,

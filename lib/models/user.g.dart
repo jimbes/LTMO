@@ -22,7 +22,7 @@ class UserAdapter extends TypeAdapter<User> {
       email: fields[2] as String,
       photo: fields[3] as String?,
       birthDate: fields[4] as DateTime?,
-      coupleId: fields[5] as String,
+      coupleId: fields[5] as String?,
       language: fields[6] as String,
       createdAt: fields[7] as DateTime,
       updatedAt: fields[8] as DateTime,

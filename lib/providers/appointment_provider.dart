@@ -1,35 +1,60 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/appointment.dart';
+import '../services/api_service.dart';
+import '../services/local_notification_service.dart';
+import 'auth_provider.dart';
 
 final appointmentBoxProvider = FutureProvider<Box<Appointment>>((ref) async {
   return Hive.openBox<Appointment>('appointments_box');
 });
 
-final appointmentsProvider = StreamProvider<List<Appointment>>((ref) async* {
-  final box = await ref.watch(appointmentBoxProvider.future);
-  yield box.values.toList();
-  yield* box.watch().map((_) => box.values.toList());
+final appointmentsProvider = FutureProvider<List<Appointment>>((ref) async {
+  final apiService = ref.watch(apiServiceProvider);
+  final token = await ref.watch(authTokenProvider.future);
+
+  if (token == null) {
+    return [];
+  }
+
+  try {
+    final appointments = await apiService.getAppointments();
+    final list = (appointments as List)
+        .map((a) => Appointment.fromJson(a as Map<String, dynamic>))
+        .toList();
+
+    // Cache in Hive
+    final box = await ref.read(appointmentBoxProvider.future);
+    for (var apt in list) {
+      await box.put(apt.id, apt);
+    }
+
+    return list;
+  } catch (e) {
+    // Fall back to local cache
+    final box = await ref.read(appointmentBoxProvider.future);
+    return box.values.toList();
+  }
 });
 
-final upcomingAppointmentsProvider = StreamProvider<List<Appointment>>((ref) async* {
-  final box = await ref.watch(appointmentBoxProvider.future);
-  yield _filterUpcoming(box.values.toList());
-  yield* box.watch().map((_) {
-    final now = DateTime.now();
-    return box.values
-        .where((a) => a.appointmentDate.isAfter(now) && !a.completed)
-        .toList()
-      ..sort((a, b) => a.appointmentDate.compareTo(b.appointmentDate));
-  });
+final upcomingAppointmentsProvider = FutureProvider<List<Appointment>>((ref) async {
+  final appointments = await ref.watch(appointmentsProvider.future);
+  return _filterUpcoming(appointments);
 });
 
 List<Appointment> _filterUpcoming(List<Appointment> appointments) {
   final now = DateTime.now();
   return appointments
-      .where((a) => a.appointmentDate.isAfter(now) && !a.completed)
+      .where((a) {
+        final compareTime = a.appointmentTime ?? a.appointmentDate;
+        return compareTime.isAfter(now) && !a.completed;
+      })
       .toList()
-    ..sort((a, b) => a.appointmentDate.compareTo(b.appointmentDate));
+    ..sort((a, b) {
+      final aTime = a.appointmentTime ?? a.appointmentDate;
+      final bTime = b.appointmentTime ?? b.appointmentDate;
+      return aTime.compareTo(bTime);
+    });
 }
 
 final appointmentProvider =
@@ -42,50 +67,109 @@ class AppointmentNotifier extends StateNotifier<AsyncValue<void>> {
 
   final Ref ref;
 
-  Future<void> addAppointment(Appointment appointment) async {
+  String? _formatTime(DateTime? time) {
+    if (time == null) return null;
+    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+  }
+
+  Future<Appointment> addAppointment(Appointment appointment) async {
     try {
       state = const AsyncValue.loading();
-      final box = await ref.read(appointmentBoxProvider.future);
-      await box.put(appointment.id, appointment);
+      final apiService = ref.read(apiServiceProvider);
+
+      final data = {
+        'title': appointment.title,
+        'appointment_date': appointment.appointmentDate.toIso8601String().split('T')[0],
+        'appointment_time': _formatTime(appointment.appointmentTime),
+        'type': appointment.type,
+        'reminder_offsets': appointment.reminderOffsets,
+        'location': appointment.location,
+        'doctor_name': appointment.doctorName,
+        'description': appointment.description,
+        'notify_user_1': appointment.notifyUser1,
+        'notify_user_2': appointment.notifyUser2,
+      };
+
+      final created = await apiService.createAppointment(data);
+      final createdAppointment = Appointment.fromJson(created);
+
+      await LocalNotificationService.instance
+          .scheduleAppointmentReminder(createdAppointment);
+
+      // Refresh the list
+      ref.invalidate(appointmentsProvider);
       state = const AsyncValue.data(null);
+      return createdAppointment;
     } catch (e, st) {
       state = AsyncValue.error(e, st);
+      rethrow;
     }
   }
 
   Future<void> updateAppointment(Appointment appointment) async {
     try {
       state = const AsyncValue.loading();
-      final box = await ref.read(appointmentBoxProvider.future);
-      await box.put(appointment.id, appointment);
+      final apiService = ref.read(apiServiceProvider);
+
+      final data = {
+        'title': appointment.title,
+        'appointment_date': appointment.appointmentDate.toIso8601String().split('T')[0],
+        'appointment_time': _formatTime(appointment.appointmentTime),
+        'type': appointment.type,
+        'reminder_offsets': appointment.reminderOffsets,
+        'location': appointment.location,
+        'doctor_name': appointment.doctorName,
+        'description': appointment.description,
+        'notify_user_1': appointment.notifyUser1,
+        'notify_user_2': appointment.notifyUser2,
+      };
+
+      final updated = await apiService.updateAppointment(appointment.id, data);
+      final updatedAppointment = Appointment.fromJson(updated);
+
+      await LocalNotificationService.instance
+          .scheduleAppointmentReminder(updatedAppointment);
+
+      // Refresh the list
+      ref.invalidate(appointmentsProvider);
       state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
+      rethrow;
     }
   }
 
   Future<void> deleteAppointment(String id) async {
     try {
       state = const AsyncValue.loading();
-      final box = await ref.read(appointmentBoxProvider.future);
-      await box.delete(id);
+      final apiService = ref.read(apiServiceProvider);
+      await apiService.deleteAppointment(id);
+
+      await LocalNotificationService.instance.cancelAppointmentReminder(id);
+
+      // Refresh the list
+      ref.invalidate(appointmentsProvider);
       state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
+      rethrow;
     }
   }
 
   Future<void> markComplete(String id) async {
     try {
       state = const AsyncValue.loading();
-      final box = await ref.read(appointmentBoxProvider.future);
-      final appointment = box.get(id);
-      if (appointment != null) {
-        await box.put(id, appointment.copyWith(completed: true));
-      }
+      final apiService = ref.read(apiServiceProvider);
+      await apiService.updateAppointment(id, {'completed': true});
+
+      await LocalNotificationService.instance.cancelAppointmentReminder(id);
+
+      // Refresh the list
+      ref.invalidate(appointmentsProvider);
       state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
+      rethrow;
     }
   }
 }

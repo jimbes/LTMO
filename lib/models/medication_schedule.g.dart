@@ -25,18 +25,19 @@ class MedicationScheduleAdapter extends TypeAdapter<MedicationSchedule> {
       frequency: fields[5] as String,
       daysOfWeek: (fields[6] as List?)?.cast<int>(),
       reminderTimes: (fields[7] as List).cast<String>(),
-      reminderOffsetHours: fields[8] as int,
+      reminderOffsets: (fields[8] as List).cast<int>(),
       notifyUser1: fields[9] as bool,
       notifyUser2: fields[10] as bool,
       createdAt: fields[11] as DateTime,
       updatedAt: fields[12] as DateTime,
+      journeyStageId: fields[13] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, MedicationSchedule obj) {
     writer
-      ..writeByte(13)
+      ..writeByte(14)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -47,6 +48,8 @@ class MedicationScheduleAdapter extends TypeAdapter<MedicationSchedule> {
       ..write(obj.startDate)
       ..writeByte(4)
       ..write(obj.endDate)
+      ..writeByte(13)
+      ..write(obj.journeyStageId)
       ..writeByte(5)
       ..write(obj.frequency)
       ..writeByte(6)
@@ -54,7 +57,7 @@ class MedicationScheduleAdapter extends TypeAdapter<MedicationSchedule> {
       ..writeByte(7)
       ..write(obj.reminderTimes)
       ..writeByte(8)
-      ..write(obj.reminderOffsetHours)
+      ..write(obj.reminderOffsets)
       ..writeByte(9)
       ..write(obj.notifyUser1)
       ..writeByte(10)

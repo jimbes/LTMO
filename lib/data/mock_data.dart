@@ -88,7 +88,7 @@ Future<void> seedMockData() async {
       startDate: now,
       frequency: 'daily',
       reminderTimes: ['09:00', '21:00'],
-      reminderOffsetHours: 1,
+      reminderOffsets: const [15],
       notifyUser1: true,
       notifyUser2: false,
       createdAt: now,
@@ -109,7 +109,7 @@ Future<void> seedMockData() async {
       notifyUser1: true,
       notifyUser2: true,
       completed: false,
-      reminderMinutesBefore: 60,
+      reminderOffsets: const [60],
       createdAt: now,
       updatedAt: now,
     );
@@ -122,7 +122,7 @@ Future<void> seedMockData() async {
       notifyUser1: true,
       notifyUser2: false,
       completed: false,
-      reminderMinutesBefore: 60,
+      reminderOffsets: const [60],
       createdAt: now,
       updatedAt: now,
     );

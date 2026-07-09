@@ -29,7 +29,7 @@ class AppointmentAdapter extends TypeAdapter<Appointment> {
       notifyUser1: fields[9] as bool,
       notifyUser2: fields[10] as bool,
       completed: fields[11] as bool,
-      reminderMinutesBefore: fields[12] as int,
+      reminderOffsets: (fields[12] as List).cast<int>(),
       createdAt: fields[13] as DateTime,
       updatedAt: fields[14] as DateTime,
     );
@@ -64,7 +64,7 @@ class AppointmentAdapter extends TypeAdapter<Appointment> {
       ..writeByte(11)
       ..write(obj.completed)
       ..writeByte(12)
-      ..write(obj.reminderMinutesBefore)
+      ..write(obj.reminderOffsets)
       ..writeByte(13)
       ..write(obj.createdAt)
       ..writeByte(14)

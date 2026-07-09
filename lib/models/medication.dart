@@ -81,8 +81,8 @@ class Medication extends HiveObject {
 
   factory Medication.fromJson(Map<String, dynamic> json) {
     return Medication(
-      id: json['id'] as String,
-      coupleId: json['couple_id'] as String,
+      id: json['id'].toString(),
+      coupleId: json['couple_id'].toString(),
       name: json['name'] as String,
       dosage: json['dosage'] as String,
       unit: json['unit'] as String,

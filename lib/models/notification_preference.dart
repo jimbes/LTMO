@@ -64,8 +64,8 @@ class NotificationPreference extends HiveObject {
 
   factory NotificationPreference.fromJson(Map<String, dynamic> json) {
     return NotificationPreference(
-      id: json['id'] as String,
-      userId: json['user_id'] as String,
+      id: json['id'].toString(),
+      userId: json['user_id'].toString(),
       type: json['type'] as String,
       channel: json['channel'] as String? ?? 'both',
       enabled: json['enabled'] as bool? ?? true,
