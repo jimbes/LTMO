@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import '../../providers/app_info_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/ltmo_colors.dart';
 
@@ -55,47 +56,69 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    final versionAsync = ref.watch(appVersionProvider);
+
     return Scaffold(
       backgroundColor: LtmoColors.encre,
-      body: Center(
-        child: FadeTransition(
-          opacity: _fade,
-          child: ScaleTransition(
-            scale: _scale,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SvgPicture.asset(
-                  'assets/icons/ltmo-mark-light.svg',
-                  width: 96,
-                  height: 96,
+      body: Stack(
+        children: [
+          Center(
+            child: FadeTransition(
+              opacity: _fade,
+              child: ScaleTransition(
+                scale: _scale,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SvgPicture.asset(
+                      'assets/icons/ltmo-mark-light.svg',
+                      width: 96,
+                      height: 96,
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      'LTMO',
+                      style: TextStyle(
+                        fontFamily: 'Mulish',
+                        fontWeight: FontWeight.w900,
+                        fontSize: 40,
+                        color: LtmoColors.creme,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      "Let's try to make one",
+                      style: TextStyle(
+                        fontFamily: 'Mulish',
+                        fontWeight: FontWeight.w300,
+                        fontSize: 13,
+                        color: LtmoColors.creme.withOpacity(0.6),
+                        letterSpacing: 2.0,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 24),
-                Text(
-                  'LTMO',
-                  style: TextStyle(
-                    fontFamily: 'Mulish',
-                    fontWeight: FontWeight.w900,
-                    fontSize: 40,
-                    color: LtmoColors.creme,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  "Let's try to make one",
-                  style: TextStyle(
-                    fontFamily: 'Mulish',
-                    fontWeight: FontWeight.w300,
-                    fontSize: 13,
-                    color: LtmoColors.creme.withOpacity(0.6),
-                    letterSpacing: 2.0,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
-        ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 32,
+            child: Center(
+              child: Text(
+                versionAsync.valueOrNull ?? '',
+                style: TextStyle(
+                  fontFamily: 'Mulish',
+                  fontWeight: FontWeight.w400,
+                  fontSize: 12,
+                  color: LtmoColors.creme.withOpacity(0.4),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
