@@ -27,7 +27,7 @@ dependencies:
   google_sign_in: ^6.2.1
 
   # Secure Storage (for auth tokens)
-  flutter_secure_storage: ^9.0.0
+  flutter_secure_storage: ^10.3.1
 
   # Local Database (offline-first with Hive)
   hive: ^2.2.3
@@ -59,7 +59,7 @@ dependencies:
   flutter_svg: ^2.3.0
 
   # App version display (splash screen, settings)
-  package_info_plus: ^8.1.2
+  package_info_plus: ^10.2.1
 
 dev_dependencies:
   flutter_test:

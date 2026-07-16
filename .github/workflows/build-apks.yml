@@ -59,28 +59,32 @@ jobs:
 
       - run: flutter pub get
 
+      # The GitHub Actions run number is the single source of truth for the
+      # version, baked into the APK itself via --build-name/--build-number.
+      # This is what package_info_plus reads at runtime (splash screen,
+      # settings), so what the app displays always matches the release tag
+      # exactly - no manual pubspec.yaml bump required per release.
+      - name: Compute version
+        id: version
+        run: echo "name=0.1.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
       - name: Build debug APK
-        run: flutter build apk --debug
+        run: flutter build apk --debug --build-name=${{ steps.version.outputs.name }} --build-number=${{ github.run_number }}
 
       - name: Build release APK
-        run: flutter build apk --release
-
-      - name: Read app version
-        id: version
-        run: |
-          echo "version=$(grep '^version:' pubspec.yaml | sed 's/version: //')" >> "$GITHUB_OUTPUT"
+        run: flutter build apk --release --build-name=${{ steps.version.outputs.name }} --build-number=${{ github.run_number }}
 
       - name: Rename APKs
         run: |
           mkdir -p dist
-          cp build/app/outputs/flutter-apk/app-debug.apk "dist/ltmo-${{ steps.version.outputs.version }}-debug.apk"
-          cp build/app/outputs/flutter-apk/app-release.apk "dist/ltmo-${{ steps.version.outputs.version }}-release.apk"
+          cp build/app/outputs/flutter-apk/app-debug.apk "dist/ltmo-${{ steps.version.outputs.name }}-debug.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk "dist/ltmo-${{ steps.version.outputs.name }}-release.apk"
 
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version.outputs.version }}-${{ github.run_number }}
-          name: LTMO v${{ steps.version.outputs.version }} (build ${{ github.run_number }})
+          tag_name: v${{ steps.version.outputs.name }}
+          name: LTMO v${{ steps.version.outputs.name }}
           files: |
-            dist/ltmo-${{ steps.version.outputs.version }}-debug.apk
-            dist/ltmo-${{ steps.version.outputs.version }}-release.apk
+            dist/ltmo-${{ steps.version.outputs.name }}-debug.apk
+            dist/ltmo-${{ steps.version.outputs.name }}-release.apk

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_typography.dart';
+import '../../providers/app_info_provider.dart';
 import '../../providers/auth_provider.dart';
 
 class PersonalInfoScreen extends ConsumerStatefulWidget {
@@ -315,6 +316,16 @@ class _PersonalInfoScreenState extends ConsumerState<PersonalInfoScreen> {
                       label: const Text(
                         'Se déconnecter',
                         style: TextStyle(fontSize: 16),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+                  Center(
+                    child: Text(
+                      ref.watch(appVersionProvider).valueOrNull ?? '',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.inkTertiary,
                       ),
                     ),
                   ),
