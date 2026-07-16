@@ -1,0 +1,73 @@
+name: Build APKs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.3'
+          channel: stable
+
+      # Firebase Android client config - gitignored, injected from a secret
+      # rather than committed (see the .gitignore comment on that path).
+      - name: Restore google-services.json
+        run: echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 -d > android/app/google-services.json
+
+      # Release signing keystore + key.properties - same reasoning, never
+      # committed. build.gradle.kts silently falls back to debug signing
+      # when key.properties is absent, so these secrets must all be set
+      # together or the "release" APK will actually be debug-signed.
+      - name: Restore release keystore
+        run: |
+          mkdir -p android/keys
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/keys/ltmo-release.jks
+          cat > android/key.properties <<EOF
+          storePassword=${{ secrets.ANDROID_STORE_PASSWORD }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          storeFile=keys/ltmo-release.jks
+          EOF
+
+      - run: flutter pub get
+
+      - name: Build debug APK
+        run: flutter build apk --debug
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Read app version
+        id: version
+        run: |
+          echo "version=$(grep '^version:' pubspec.yaml | sed 's/version: //')" >> "$GITHUB_OUTPUT"
+
+      - name: Rename APKs
+        run: |
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-debug.apk "dist/ltmo-${{ steps.version.outputs.version }}-debug.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk "dist/ltmo-${{ steps.version.outputs.version }}-release.apk"
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}-${{ github.run_number }}
+          name: LTMO v${{ steps.version.outputs.version }} (build ${{ github.run_number }})
+          files: |
+            dist/ltmo-${{ steps.version.outputs.version }}-debug.apk
+            dist/ltmo-${{ steps.version.outputs.version }}-release.apk
