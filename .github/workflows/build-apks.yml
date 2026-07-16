@@ -44,6 +44,19 @@ jobs:
           storeFile=keys/ltmo-release.jks
           EOF
 
+      # Fails fast with a clear keytool error if ANDROID_KEYSTORE_BASE64 was
+      # pasted incorrectly (truncated/corrupted), instead of discovering it
+      # 2 minutes into the release build via a cryptic Gradle DER-parsing
+      # error. The checksum is not sensitive - compare it against
+      # `sha256sum android/keys/ltmo-release.jks` on your own machine to
+      # confirm the secret matches the real file byte-for-byte.
+      - name: Verify keystore
+        run: |
+          echo "Keystore SHA256: $(sha256sum android/keys/ltmo-release.jks | cut -d' ' -f1)"
+          keytool -list -keystore android/keys/ltmo-release.jks \
+            -storepass "${{ secrets.ANDROID_STORE_PASSWORD }}" \
+            -alias "${{ secrets.ANDROID_KEY_ALIAS }}"
+
       - run: flutter pub get
 
       - name: Build debug APK
