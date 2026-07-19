@@ -9,10 +9,12 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_typography.dart';
 import '../../theme/ltmo_colors.dart';
 
-// Web Client ID from Google Cloud Console - used so Android/iOS issue an
-// ID token whose audience the backend can verify.
+// Web Client ID from Google Cloud Console (ltmo-52722) - used so Android/iOS
+// issue an ID token whose audience the backend can verify. Must stay equal
+// to GOOGLE_CLIENT_ID in the backend .env (the aud claim GoogleAuthController
+// checks). Public value - safe to commit.
 const String _googleServerClientId =
-    '642146795710-rggsra8r0lpll67ettc4fi3l86p4i6pn.apps.googleusercontent.com';
+    '362475867876-v77kbb0udncs1bf90kjprscnfquhljod.apps.googleusercontent.com';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
