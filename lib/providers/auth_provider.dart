@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/user.dart';
@@ -230,6 +231,12 @@ class UserNotifier extends StateNotifier<AsyncValue<User?>> {
   /// install/device has none scheduled until this runs once per login.
   void _onAuthSuccess() {
     _invalidateDataProviders();
+
+    // Notifications (local + FCM push) have no web implementation; skip the
+    // whole block on web so a preview/screenshot session doesn't throw after
+    // login. No effect on mobile.
+    if (kIsWeb) return;
+
     LocalNotificationService.instance.requestPermissions().then((_) {
       resyncAllNotifications(ref);
     });

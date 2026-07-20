@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -54,10 +55,17 @@ void main() async {
   // Don't seed mock data - users get real data from API after login
   // await seedMockData();
 
-  await LocalNotificationService.instance.init();
+  // Local + push notifications have no web implementation (flutter_local_
+  // notifications) and need web-specific config that the mobile app doesn't
+  // ship (Firebase). Skip both on web - it's used only for screenshots/preview,
+  // where notifications don't apply. Mobile behaviour is unchanged (kIsWeb is
+  // always false there).
+  if (!kIsWeb) {
+    await LocalNotificationService.instance.init();
 
-  await Firebase.initializeApp();
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    await Firebase.initializeApp();
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  }
 
   wireAuthProviderNavigation();
 
