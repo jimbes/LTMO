@@ -32,13 +32,14 @@ class JourneyStageAdapter extends TypeAdapter<JourneyStage> {
       durationDays: fields[12] as int?,
       customName: fields[13] as String?,
       manualEndDate: fields[14] as bool,
+      manualStartDate: fields[15] as bool,
     );
   }
 
   @override
   void write(BinaryWriter writer, JourneyStage obj) {
     writer
-      ..writeByte(15)
+      ..writeByte(16)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -68,7 +69,9 @@ class JourneyStageAdapter extends TypeAdapter<JourneyStage> {
       ..writeByte(13)
       ..write(obj.customName)
       ..writeByte(14)
-      ..write(obj.manualEndDate);
+      ..write(obj.manualEndDate)
+      ..writeByte(15)
+      ..write(obj.manualStartDate);
   }
 
   @override

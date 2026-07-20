@@ -49,6 +49,9 @@ class JourneyStage extends HiveObject {
   @HiveField(14)
   bool manualEndDate;
 
+  @HiveField(15)
+  bool manualStartDate;
+
   JourneyStage({
     required this.id,
     required this.coupleId,
@@ -65,6 +68,7 @@ class JourneyStage extends HiveObject {
     this.durationDays,
     this.customName,
     this.manualEndDate = false,
+    this.manualStartDate = false,
   });
 
   JourneyStage copyWith({
@@ -86,6 +90,7 @@ class JourneyStage extends HiveObject {
     String? customName,
     bool clearCustomName = false,
     bool? manualEndDate,
+    bool? manualStartDate,
   }) {
     return JourneyStage(
       id: id ?? this.id,
@@ -104,6 +109,7 @@ class JourneyStage extends HiveObject {
           clearDurationDays ? null : (durationDays ?? this.durationDays),
       customName: clearCustomName ? null : (customName ?? this.customName),
       manualEndDate: manualEndDate ?? this.manualEndDate,
+      manualStartDate: manualStartDate ?? this.manualStartDate,
     );
   }
 
@@ -129,6 +135,7 @@ class JourneyStage extends HiveObject {
       durationDays: json['duration_days'] as int?,
       customName: json['custom_name'] as String?,
       manualEndDate: json['manual_end_date'] as bool? ?? false,
+      manualStartDate: json['manual_start_date'] as bool? ?? false,
     );
   }
 
@@ -144,6 +151,7 @@ class JourneyStage extends HiveObject {
       'end_date': endDate?.toIso8601String(),
       'duration_days': durationDays,
       'manual_end_date': manualEndDate,
+      'manual_start_date': manualStartDate,
       'status': status,
       'reminder_enabled': reminderEnabled,
       'notes': notes,

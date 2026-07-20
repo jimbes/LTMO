@@ -70,8 +70,11 @@ class JourneyNotifier extends StateNotifier<AsyncValue<void>> {
   /// duration, UNLESS `manualEndDate` is set (user override), in which case
   /// its own end date is kept as-is. The next stage starts the day AFTER
   /// whatever end date resulted (a stage ending on D doesn't overlap with
-  /// the one starting the same day). The last stage always keeps a manually
-  /// set end date (only meaningful once done).
+  /// the one starting the same day), UNLESS that next stage has
+  /// `manualStartDate` set, in which case its own start date is kept as-is
+  /// (e.g. a finished stage is followed by a gap before the next one starts
+  /// on a specific future date). The last stage always keeps a manually set
+  /// end date (only meaningful once done).
   List<JourneyStage> _recomputeChain(List<JourneyStage> stages) {
     final result = <JourneyStage>[];
     DateTime? previousEnd;
@@ -82,9 +85,11 @@ class JourneyNotifier extends StateNotifier<AsyncValue<void>> {
 
       final start = i == 0
           ? stage.startDate
-          : (previousEnd != null
-              ? previousEnd.add(const Duration(days: 1))
-              : stage.startDate);
+          : (stage.manualStartDate
+              ? stage.startDate
+              : (previousEnd != null
+                  ? previousEnd.add(const Duration(days: 1))
+                  : stage.startDate));
 
       DateTime? end;
       if (!isLast && !stage.manualEndDate) {
@@ -125,6 +130,7 @@ class JourneyNotifier extends StateNotifier<AsyncValue<void>> {
       'end_date': stage.endDate?.toIso8601String().split('T')[0],
       'duration_days': stage.durationDays,
       'manual_end_date': stage.manualEndDate,
+      'manual_start_date': stage.manualStartDate,
       'status': stage.status,
       'reminder_enabled': stage.reminderEnabled,
       'notes': stage.notes,

@@ -273,8 +273,11 @@ class _EditStageSheetState extends ConsumerState<_EditStageSheet> {
   late DateTime? _selectedEndDate;
   late int _durationDays;
   late bool _manualEndDate;
+  late bool _manualStartDate;
   bool _showMoreOptions = false;
   bool _saving = false;
+
+  bool get _canEditStartDate => widget.stage.order == 0 || _manualStartDate;
 
   @override
   void initState() {
@@ -288,6 +291,9 @@ class _EditStageSheetState extends ConsumerState<_EditStageSheet> {
     // reflects whether the user explicitly overrode the computed one.
     _manualEndDate = widget.isLast || widget.stage.manualEndDate;
     _showMoreOptions = !widget.isLast && widget.stage.manualEndDate;
+    // Only meaningful for non-first stages: whether this stage's start date
+    // is pinned by the user instead of chained to the previous stage's end.
+    _manualStartDate = widget.stage.manualStartDate;
   }
 
   @override
@@ -347,6 +353,7 @@ class _EditStageSheetState extends ConsumerState<_EditStageSheet> {
         durationDays: durationValue,
         clearDurationDays: durationValue == null,
         manualEndDate: isManual,
+        manualStartDate: _manualStartDate,
         customName: customNameValue,
         clearCustomName: customNameValue == null,
       );
@@ -458,19 +465,20 @@ class _EditStageSheetState extends ConsumerState<_EditStageSheet> {
             ),
             const SizedBox(height: 24),
 
-            // Start date selector (only truly editable for the first stage;
-            // for chained stages it's computed, but still shown read-only)
+            // Start date selector: always editable for the first stage; for
+            // chained stages it's computed from the previous stage's end
+            // date, unless "date de début manuelle" is turned on below.
             Text('Date de début', style: AppTypography.labelMedium),
             const SizedBox(height: 8),
             GestureDetector(
-              onTap: widget.stage.order == 0 ? _selectStartDate : null,
+              onTap: _canEditStartDate ? _selectStartDate : null,
               child: Container(
                 padding:
                     const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
                 decoration: BoxDecoration(
                   border: Border.all(color: AppColors.border1),
                   borderRadius: BorderRadius.circular(12),
-                  color: widget.stage.order == 0
+                  color: _canEditStartDate
                       ? Colors.transparent
                       : AppColors.sageBgLight,
                 ),
@@ -481,7 +489,7 @@ class _EditStageSheetState extends ConsumerState<_EditStageSheet> {
                       '${_selectedStartDate.day}/${_selectedStartDate.month}/${_selectedStartDate.year}',
                       style: AppTypography.bodyMedium,
                     ),
-                    if (widget.stage.order == 0)
+                    if (_canEditStartDate)
                       const Icon(Icons.calendar_today)
                     else
                       Text(
@@ -494,6 +502,21 @@ class _EditStageSheetState extends ConsumerState<_EditStageSheet> {
                 ),
               ),
             ),
+            if (widget.stage.order != 0)
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Définir une date de début manuelle'),
+                subtitle: const Text(
+                  'Sinon, elle commence le lendemain de la fin de l\'étape '
+                  'précédente. Utile si cette étape ne démarre pas tout de '
+                  'suite après la précédente.',
+                ),
+                value: _manualStartDate,
+                activeThumbColor: AppColors.sage,
+                onChanged: (value) {
+                  setState(() => _manualStartDate = value);
+                },
+              ),
             const SizedBox(height: 24),
 
             // Duration (non-last stages) or manual end date (last stage)
