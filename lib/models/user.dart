@@ -31,6 +31,13 @@ class User extends HiveObject {
   @HiveField(8)
   DateTime updatedAt;
 
+  // Whether this account is couple->users()->first() - i.e. which of
+  // notify_user_1/notify_user_2 (on appointments/schedules) applies to it.
+  // Defaults true (couple not joined yet, or field missing) so a solo
+  // account still gets its own reminders.
+  @HiveField(9)
+  bool isPrimaryUser;
+
   User({
     required this.id,
     required this.name,
@@ -41,6 +48,7 @@ class User extends HiveObject {
     required this.language,
     required this.createdAt,
     required this.updatedAt,
+    this.isPrimaryUser = true,
   });
 
   User copyWith({
@@ -53,6 +61,7 @@ class User extends HiveObject {
     String? language,
     DateTime? createdAt,
     DateTime? updatedAt,
+    bool? isPrimaryUser,
   }) {
     return User(
       id: id ?? this.id,
@@ -64,6 +73,7 @@ class User extends HiveObject {
       language: language ?? this.language,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      isPrimaryUser: isPrimaryUser ?? this.isPrimaryUser,
     );
   }
 
@@ -84,6 +94,7 @@ class User extends HiveObject {
       updatedAt: json['updated_at'] != null
           ? DateTime.parse(json['updated_at'] as String)
           : DateTime.now(),
+      isPrimaryUser: json['is_primary_user'] as bool? ?? true,
     );
   }
 
@@ -98,6 +109,7 @@ class User extends HiveObject {
       'language': language,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
+      'is_primary_user': isPrimaryUser,
     };
   }
 }

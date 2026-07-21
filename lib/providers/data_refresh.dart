@@ -6,6 +6,7 @@ import 'journey_provider.dart';
 import 'partner_provider.dart';
 import 'practitioner_provider.dart';
 import '../services/local_notification_service.dart';
+import '../utils/notification_routing.dart';
 
 /// Invalidates every provider that fetches shared couple data from the API,
 /// so the next read/watch triggers a fresh network fetch. Cheap to call
@@ -41,9 +42,24 @@ Future<void> resyncAllNotifications(Ref ref) async {
     final medications = await ref.read(medicationsProvider.future);
     final appointments = await ref.read(appointmentsProvider.future);
 
+    // Clear everything first rather than relying solely on the per-item
+    // cancel-then-reschedule below: a schedule/appointment deleted from
+    // another device wouldn't be in the fresh lists at all, so nothing
+    // would otherwise cancel its old alarm; this also sweeps up any alarm
+    // still scheduled under a previous app version's notification id
+    // scheme.
+    await LocalNotificationService.instance.cancelAll();
+
     final medMap = {for (final m in medications) m.id: m};
 
     for (final schedule in schedules) {
+      if (!shouldNotifyCurrentUser(
+        ref,
+        notifyUser1: schedule.notifyUser1,
+        notifyUser2: schedule.notifyUser2,
+      )) {
+        continue;
+      }
       await LocalNotificationService.instance.scheduleMedicationReminders(
         schedule,
         medMap[schedule.medicationId],
@@ -51,6 +67,13 @@ Future<void> resyncAllNotifications(Ref ref) async {
     }
 
     for (final appointment in appointments) {
+      if (!shouldNotifyCurrentUser(
+        ref,
+        notifyUser1: appointment.notifyUser1,
+        notifyUser2: appointment.notifyUser2,
+      )) {
+        continue;
+      }
       await LocalNotificationService.instance
           .scheduleAppointmentReminder(appointment);
     }

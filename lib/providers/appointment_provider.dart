@@ -3,6 +3,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../models/appointment.dart';
 import '../services/api_service.dart';
 import '../services/local_notification_service.dart';
+import '../utils/notification_routing.dart';
 import 'auth_provider.dart';
 
 final appointmentBoxProvider = FutureProvider<Box<Appointment>>((ref) async {
@@ -93,8 +94,14 @@ class AppointmentNotifier extends StateNotifier<AsyncValue<void>> {
       final created = await apiService.createAppointment(data);
       final createdAppointment = Appointment.fromJson(created);
 
-      await LocalNotificationService.instance
-          .scheduleAppointmentReminder(createdAppointment);
+      if (shouldNotifyCurrentUser(
+        ref,
+        notifyUser1: createdAppointment.notifyUser1,
+        notifyUser2: createdAppointment.notifyUser2,
+      )) {
+        await LocalNotificationService.instance
+            .scheduleAppointmentReminder(createdAppointment);
+      }
 
       // Refresh the list
       ref.invalidate(appointmentsProvider);
@@ -127,8 +134,19 @@ class AppointmentNotifier extends StateNotifier<AsyncValue<void>> {
       final updated = await apiService.updateAppointment(appointment.id, data);
       final updatedAppointment = Appointment.fromJson(updated);
 
-      await LocalNotificationService.instance
-          .scheduleAppointmentReminder(updatedAppointment);
+      if (shouldNotifyCurrentUser(
+        ref,
+        notifyUser1: updatedAppointment.notifyUser1,
+        notifyUser2: updatedAppointment.notifyUser2,
+      )) {
+        await LocalNotificationService.instance
+            .scheduleAppointmentReminder(updatedAppointment);
+      } else {
+        // Flag may have just been turned off for this user - clear any
+        // reminder scheduled from before that change.
+        await LocalNotificationService.instance
+            .cancelAppointmentReminder(updatedAppointment.id);
+      }
 
       // Refresh the list
       ref.invalidate(appointmentsProvider);

@@ -4,6 +4,7 @@ import '../models/medication.dart';
 import '../models/medication_schedule.dart';
 import '../services/api_service.dart';
 import '../services/local_notification_service.dart';
+import '../utils/notification_routing.dart';
 import 'auth_provider.dart';
 
 final medicationBoxProvider = FutureProvider<Box<Medication>>((ref) async {
@@ -176,10 +177,16 @@ class MedicationNotifier extends StateNotifier<AsyncValue<void>> {
       final created = await apiService.createSchedule(data);
       final createdSchedule = MedicationSchedule.fromJson(created);
 
-      await LocalNotificationService.instance.scheduleMedicationReminders(
-        createdSchedule,
-        _findMedication(createdSchedule.medicationId),
-      );
+      if (shouldNotifyCurrentUser(
+        ref,
+        notifyUser1: createdSchedule.notifyUser1,
+        notifyUser2: createdSchedule.notifyUser2,
+      )) {
+        await LocalNotificationService.instance.scheduleMedicationReminders(
+          createdSchedule,
+          _findMedication(createdSchedule.medicationId),
+        );
+      }
 
       // Refresh the list
       ref.invalidate(schedulesProvider);
@@ -209,10 +216,21 @@ class MedicationNotifier extends StateNotifier<AsyncValue<void>> {
       final updated = await apiService.updateSchedule(schedule.id, data);
       final updatedSchedule = MedicationSchedule.fromJson(updated);
 
-      await LocalNotificationService.instance.scheduleMedicationReminders(
-        updatedSchedule,
-        _findMedication(updatedSchedule.medicationId),
-      );
+      if (shouldNotifyCurrentUser(
+        ref,
+        notifyUser1: updatedSchedule.notifyUser1,
+        notifyUser2: updatedSchedule.notifyUser2,
+      )) {
+        await LocalNotificationService.instance.scheduleMedicationReminders(
+          updatedSchedule,
+          _findMedication(updatedSchedule.medicationId),
+        );
+      } else {
+        // Flag may have just been turned off for this user - clear any
+        // reminders scheduled from before that change.
+        await LocalNotificationService.instance
+            .cancelMedicationReminders(updatedSchedule);
+      }
 
       // Refresh the list
       ref.invalidate(schedulesProvider);
