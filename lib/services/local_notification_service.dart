@@ -1,9 +1,11 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 import '../models/medication_schedule.dart';
 import '../models/medication.dart';
 import '../models/appointment.dart';
+import '../utils/notification_id.dart';
 import '../widgets/reminder_offsets_picker.dart';
 
 /// Schedules on-device reminders for medications and appointments. No
@@ -70,6 +72,19 @@ class LocalNotificationService {
     if (androidImpl != null) {
       await androidImpl.requestNotificationsPermission();
       await androidImpl.requestExactAlarmsPermission();
+
+      // OEM battery managers (Samsung/Xiaomi/etc.) kill scheduled alarms
+      // for apps they haven't explicitly exempted, even with the exact-
+      // alarm permission granted above - this is what actually keeps
+      // reminders firing on those devices. No-op if already granted.
+      try {
+        if (!await Permission.ignoreBatteryOptimizations.isGranted) {
+          await Permission.ignoreBatteryOptimizations.request();
+        }
+      } catch (_) {
+        // Best-effort: some OEM/Android combinations don't expose this
+        // dialog reliably - shouldn't block the rest of setup over it.
+      }
     }
     if (iosImpl != null) {
       await iosImpl.requestPermissions(alert: true, badge: true, sound: true);
@@ -121,17 +136,8 @@ class LocalNotificationService {
     );
   }
 
-  int _medicationBaseId(String scheduleId, String reminderTime, int offsetMinutes) {
-    return ('med_${scheduleId}_${reminderTime}_$offsetMinutes').hashCode &
-        0x7FFFFFFF;
-  }
-
-  int _appointmentId(String appointmentId, int offsetMinutes) {
-    return ('apt_${appointmentId}_$offsetMinutes').hashCode & 0x7FFFFFFF;
-  }
-
   /// Cancels every notification that could have been scheduled for this
-  /// schedule (the single "daily" id and the 7 "specific_days" id variants,
+  /// schedule (the "daily" id and the 7 "specific_days" weekday variants,
   /// for every possible offset preset - not just the currently-selected
   /// ones, since a previously-selected offset that's since been removed
   /// still needs its old alarm cleared). Safe to call even if nothing was
@@ -139,10 +145,22 @@ class LocalNotificationService {
   Future<void> cancelMedicationReminders(MedicationSchedule schedule) async {
     for (final time in schedule.reminderTimes) {
       for (final offsetMinutes in reminderOffsetPresets) {
-        final baseId = _medicationBaseId(schedule.id, time, offsetMinutes);
-        await _plugin.cancel(id: baseId);
+        await _plugin.cancel(
+          id: medicationReminderNotificationId(
+            scheduleId: schedule.id,
+            doseTime: time,
+            offsetMinutes: offsetMinutes,
+          ),
+        );
         for (var day = 0; day < 7; day++) {
-          await _plugin.cancel(id: baseId + 1 + day);
+          await _plugin.cancel(
+            id: medicationReminderNotificationId(
+              scheduleId: schedule.id,
+              doseTime: time,
+              offsetMinutes: offsetMinutes,
+              weekday: day,
+            ),
+          );
         }
       }
     }
@@ -174,7 +192,6 @@ class LocalNotificationService {
       );
 
       for (final offsetMinutes in schedule.reminderOffsets) {
-        final baseId = _medicationBaseId(schedule.id, time, offsetMinutes);
         final body =
             'C\'est bientôt l\'heure de votre prise (dans ${formatReminderOffset(offsetMinutes)})';
 
@@ -185,7 +202,11 @@ class LocalNotificationService {
 
         if (schedule.frequency == 'daily') {
           await _plugin.zonedSchedule(
-            id: baseId,
+            id: medicationReminderNotificationId(
+              scheduleId: schedule.id,
+              doseTime: time,
+              offsetMinutes: offsetMinutes,
+            ),
             title: title,
             body: body,
             scheduledDate: fireTime,
@@ -203,7 +224,12 @@ class LocalNotificationService {
               dayFireTime = dayFireTime.add(const Duration(days: 1));
             }
             await _plugin.zonedSchedule(
-              id: baseId + 1 + day,
+              id: medicationReminderNotificationId(
+                scheduleId: schedule.id,
+                doseTime: time,
+                offsetMinutes: offsetMinutes,
+                weekday: day,
+              ),
               title: title,
               body: body,
               scheduledDate: dayFireTime,
@@ -222,7 +248,12 @@ class LocalNotificationService {
   /// cancelMedicationReminders for why not just the current ones).
   Future<void> cancelAppointmentReminder(String appointmentId) async {
     for (final offsetMinutes in reminderOffsetPresets) {
-      await _plugin.cancel(id: _appointmentId(appointmentId, offsetMinutes));
+      await _plugin.cancel(
+        id: appointmentReminderNotificationId(
+          appointmentId: appointmentId,
+          offsetMinutes: offsetMinutes,
+        ),
+      );
     }
   }
 
@@ -241,7 +272,10 @@ class LocalNotificationService {
           : 'Vous avez un rendez-vous bientôt (dans ${formatReminderOffset(offsetMinutes)})';
 
       await _plugin.zonedSchedule(
-        id: _appointmentId(appointment.id, offsetMinutes),
+        id: appointmentReminderNotificationId(
+          appointmentId: appointment.id,
+          offsetMinutes: offsetMinutes,
+        ),
         title: appointment.title,
         body: body,
         scheduledDate: tz.TZDateTime.from(fireTime, tz.local),

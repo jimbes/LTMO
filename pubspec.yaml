@@ -54,6 +54,11 @@ dependencies:
   firebase_core: ^3.8.0
   firebase_messaging: ^15.1.6
 
+  # Requests exemption from OEM battery optimization (Samsung/Xiaomi/etc.
+  # kill scheduled local-notification alarms otherwise) and the Android 13+
+  # notification permission.
+  permission_handler: ^11.3.1
+
   # UI & Icons
   cupertino_icons: ^1.0.6
   flutter_svg: ^2.3.0

@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_typography.dart';
 import '../../models/notification_preference.dart';
@@ -27,6 +29,32 @@ class _NotificationsSettingsScreenState
   String _journeyChannel = 'push';
   bool _seeded = false;
   bool _saving = false;
+
+  // null = unknown/checking, true = exempted (reliable), false = not
+  // exempted (OEM battery management can kill scheduled reminders).
+  bool? _batteryExempted;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshBatteryStatus();
+  }
+
+  Future<void> _refreshBatteryStatus() async {
+    if (kIsWeb) return;
+    try {
+      final granted = await Permission.ignoreBatteryOptimizations.isGranted;
+      if (mounted) setState(() => _batteryExempted = granted);
+    } catch (_) {
+      // Not supported on this platform (iOS has no such concept) - leave
+      // the card hidden rather than showing a confusing unknown state.
+    }
+  }
+
+  Future<void> _requestBatteryExemption() async {
+    await Permission.ignoreBatteryOptimizations.request();
+    await _refreshBatteryStatus();
+  }
 
   void _seedFromPreferences(List<NotificationPreference> prefs) {
     if (_seeded) return;
@@ -124,6 +152,11 @@ class _NotificationsSettingsScreenState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (_batteryExempted == false) ...[
+                    _BatteryOptimizationCard(onFix: _requestBatteryExemption),
+                    const SizedBox(height: 24),
+                  ],
+
                   // Medication reminders section
                   Text('Rappels médicaments', style: AppTypography.titleMedium),
                   const SizedBox(height: 12),
@@ -215,6 +248,54 @@ class _NotificationsSettingsScreenState
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// Shown when the OS reports the app is subject to battery optimization -
+/// on Samsung/Xiaomi/etc. this is the main reason scheduled local reminders
+/// silently stop firing, even with notification + exact-alarm permissions
+/// granted.
+class _BatteryOptimizationCard extends StatelessWidget {
+  final VoidCallback onFix;
+
+  const _BatteryOptimizationCard({required this.onFix});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.sageBgLight,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Fiabilité des rappels', style: AppTypography.titleSmall),
+          const SizedBox(height: 4),
+          Text(
+            'Votre téléphone peut arrêter les rappels programmés en '
+            'arrière-plan pour économiser la batterie. Autorisez LTMO à '
+            'fonctionner en arrière-plan pour ne rater aucun rappel.',
+            style: AppTypography.bodySmall
+                .copyWith(color: AppColors.inkTertiary),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: onFix,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.sage,
+                side: const BorderSide(color: AppColors.sage),
+              ),
+              child: const Text('Autoriser'),
+            ),
+          ),
+        ],
       ),
     );
   }

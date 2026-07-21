@@ -9,6 +9,10 @@
     <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
+    <!-- Lets us prompt the user to exclude the app from OEM battery
+         optimization (Samsung/Xiaomi/etc. otherwise kill scheduled local
+         reminders even with the exact-alarm permission granted). -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
     <application
         android:label="LTMO"
         android:name="${applicationName}"
