@@ -79,9 +79,6 @@ jobs:
           echo "number=$number" >> "$GITHUB_OUTPUT"
           echo "name=0.1.$number" >> "$GITHUB_OUTPUT"
 
-      - name: Build debug APK
-        run: flutter build apk --debug --build-name=${{ steps.version.outputs.name }} --build-number=${{ steps.version.outputs.number }}
-
       - name: Build release APK
         run: flutter build apk --release --build-name=${{ steps.version.outputs.name }} --build-number=${{ steps.version.outputs.number }}
 
@@ -93,7 +90,6 @@ jobs:
       - name: Rename artifacts
         run: |
           mkdir -p dist
-          cp build/app/outputs/flutter-apk/app-debug.apk "dist/ltmo-${{ steps.version.outputs.name }}-debug.apk"
           cp build/app/outputs/flutter-apk/app-release.apk "dist/ltmo-${{ steps.version.outputs.name }}-release.apk"
           cp build/app/outputs/bundle/release/app-release.aab "dist/ltmo-${{ steps.version.outputs.name }}-release.aab"
 
@@ -115,14 +111,11 @@ jobs:
           files: |
             dist/ltmo-${{ steps.version.outputs.name }}-release.apk
 
-      # Debug APK (debuggable=true - shouldn't be publicly distributed) and
-      # the AAB (not directly installable, only used to upload to the Play
-      # Console) stay private: Actions artifacts require repo access + auth
-      # to download, unlike public Release assets.
-      - name: Upload debug APK and AAB (private)
+      # AAB isn't directly installable - only used to upload to the Play
+      # Console - so it stays private: Actions artifacts require repo access
+      # + auth to download, unlike public Release assets.
+      - name: Upload AAB (private)
         uses: actions/upload-artifact@v4
         with:
           name: ltmo-${{ steps.version.outputs.name }}
-          path: |
-            dist/ltmo-${{ steps.version.outputs.name }}-debug.apk
-            dist/ltmo-${{ steps.version.outputs.name }}-release.aab
+          path: dist/ltmo-${{ steps.version.outputs.name }}-release.aab
