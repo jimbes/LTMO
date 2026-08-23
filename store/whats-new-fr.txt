@@ -1,0 +1,7 @@
+Fiabilité des rappels améliorée : fini les notifications en double, et l'app peut demander l'autorisation de fonctionner en arrière-plan pour ne plus rater de rappel (Samsung et similaires). Chaque téléphone ne reçoit plus que les rappels qui le concernent.
+
+Parcours : possibilité de fixer une date de début libre pour une étape.
+
+Médicaments : l'historique des prises est conservé après désactivation d'un médicament.
+
+Corrections diverses.
