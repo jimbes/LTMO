@@ -64,20 +64,31 @@ jobs:
       # This is what package_info_plus reads at runtime (splash screen,
       # settings), so what the app displays always matches the release tag
       # exactly - no manual pubspec.yaml bump required per release.
+      #
+      # +1 offset: versionCode 10 (0.1.10) was uploaded to the Play Console
+      # from a local build made outside CI while iterating on a bug fix,
+      # bypassing this counter. Run #10 (the next run after that) would
+      # otherwise collide with that already-used versionCode - the Play
+      # Console rejects re-using one. Bumping by 1 here makes run #10 emit
+      # 11, safely past it, and every run after stays consistent since this
+      # is now the only place versions get cut again.
       - name: Compute version
         id: version
-        run: echo "name=0.1.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+        run: |
+          number=$(( ${{ github.run_number }} + 1 ))
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+          echo "name=0.1.$number" >> "$GITHUB_OUTPUT"
 
       - name: Build debug APK
-        run: flutter build apk --debug --build-name=${{ steps.version.outputs.name }} --build-number=${{ github.run_number }}
+        run: flutter build apk --debug --build-name=${{ steps.version.outputs.name }} --build-number=${{ steps.version.outputs.number }}
 
       - name: Build release APK
-        run: flutter build apk --release --build-name=${{ steps.version.outputs.name }} --build-number=${{ github.run_number }}
+        run: flutter build apk --release --build-name=${{ steps.version.outputs.name }} --build-number=${{ steps.version.outputs.number }}
 
       # App Bundle - the format the Play Store actually requires for
       # submission (the release APK above is kept for sideloading/testing).
       - name: Build release AAB
-        run: flutter build appbundle --release --build-name=${{ steps.version.outputs.name }} --build-number=${{ github.run_number }}
+        run: flutter build appbundle --release --build-name=${{ steps.version.outputs.name }} --build-number=${{ steps.version.outputs.number }}
 
       - name: Rename artifacts
         run: |
@@ -86,12 +97,26 @@ jobs:
           cp build/app/outputs/flutter-apk/app-release.apk "dist/ltmo-${{ steps.version.outputs.name }}-release.apk"
           cp build/app/outputs/bundle/release/app-release.aab "dist/ltmo-${{ steps.version.outputs.name }}-release.aab"
 
-      - name: Create release
+      # Tags the version for traceability, but deliberately does NOT attach
+      # the APK/AAB here - Release assets on a public repo are downloadable
+      # by anyone with no authentication, which we don't want for a health
+      # app (and especially not the debuggable=true debug APK). The actual
+      # binaries go to a private Actions artifact instead (see next step).
+      - name: Create release (no binary attachments)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.name }}
           name: LTMO v${{ steps.version.outputs.name }}
-          files: |
+
+      # Actions artifacts require repo access + GitHub auth to download,
+      # even on a public repo - unlike Release assets. This is what you
+      # download to get the exact AAB to upload to the Play Console, so the
+      # Play Store version always matches this CI run's tag/versionCode.
+      - name: Upload build artifacts (private)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ltmo-${{ steps.version.outputs.name }}
+          path: |
             dist/ltmo-${{ steps.version.outputs.name }}-debug.apk
             dist/ltmo-${{ steps.version.outputs.name }}-release.apk
             dist/ltmo-${{ steps.version.outputs.name }}-release.aab

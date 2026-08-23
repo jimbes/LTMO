@@ -2,7 +2,7 @@ name: ltmo
 description: Couples Medical Appointment & Medication Manager - Flutter Frontend
 publish_to: 'none'
 
-version: 0.1.10+10
+version: 0.1.11+11
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
