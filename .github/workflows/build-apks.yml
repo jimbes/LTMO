@@ -1,4 +1,4 @@
-name: Build APKs
+name: Build Android Releases
 
 on:
   push:
@@ -74,11 +74,17 @@ jobs:
       - name: Build release APK
         run: flutter build apk --release --build-name=${{ steps.version.outputs.name }} --build-number=${{ github.run_number }}
 
-      - name: Rename APKs
+      # App Bundle - the format the Play Store actually requires for
+      # submission (the release APK above is kept for sideloading/testing).
+      - name: Build release AAB
+        run: flutter build appbundle --release --build-name=${{ steps.version.outputs.name }} --build-number=${{ github.run_number }}
+
+      - name: Rename artifacts
         run: |
           mkdir -p dist
           cp build/app/outputs/flutter-apk/app-debug.apk "dist/ltmo-${{ steps.version.outputs.name }}-debug.apk"
           cp build/app/outputs/flutter-apk/app-release.apk "dist/ltmo-${{ steps.version.outputs.name }}-release.apk"
+          cp build/app/outputs/bundle/release/app-release.aab "dist/ltmo-${{ steps.version.outputs.name }}-release.aab"
 
       - name: Create release
         uses: softprops/action-gh-release@v2
@@ -88,3 +94,4 @@ jobs:
           files: |
             dist/ltmo-${{ steps.version.outputs.name }}-debug.apk
             dist/ltmo-${{ steps.version.outputs.name }}-release.apk
+            dist/ltmo-${{ steps.version.outputs.name }}-release.aab
