@@ -97,26 +97,32 @@ jobs:
           cp build/app/outputs/flutter-apk/app-release.apk "dist/ltmo-${{ steps.version.outputs.name }}-release.apk"
           cp build/app/outputs/bundle/release/app-release.aab "dist/ltmo-${{ steps.version.outputs.name }}-release.aab"
 
-      # Tags the version for traceability, but deliberately does NOT attach
-      # the APK/AAB here - Release assets on a public repo are downloadable
-      # by anyone with no authentication, which we don't want for a health
-      # app (and especially not the debuggable=true debug APK). The actual
-      # binaries go to a private Actions artifact instead (see next step).
-      - name: Create release (no binary attachments)
+      # Only the release APK is public - it's meant for anyone to sideload.
+      # Its signing certificate is the public half by design (installing
+      # from anywhere exposes the same one); nothing sensitive leaks by
+      # attaching it here. NOTE: it's signed with the upload key, not the
+      # Play App Signing certificate the Play Store re-signs with, so a
+      # device can't have both this build and the Play Store build installed
+      # at once - Android blocks installing/updating across a signature
+      # mismatch until the other one is uninstalled first.
+      - name: Create release (public release APK only)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.name }}
           name: LTMO v${{ steps.version.outputs.name }}
+          body: |
+            Signed with the upload key, not the Play Store's certificate - don't install this alongside the Play Store version of LTMO (signature mismatch blocks the install/update).
+          files: |
+            dist/ltmo-${{ steps.version.outputs.name }}-release.apk
 
-      # Actions artifacts require repo access + GitHub auth to download,
-      # even on a public repo - unlike Release assets. This is what you
-      # download to get the exact AAB to upload to the Play Console, so the
-      # Play Store version always matches this CI run's tag/versionCode.
-      - name: Upload build artifacts (private)
+      # Debug APK (debuggable=true - shouldn't be publicly distributed) and
+      # the AAB (not directly installable, only used to upload to the Play
+      # Console) stay private: Actions artifacts require repo access + auth
+      # to download, unlike public Release assets.
+      - name: Upload debug APK and AAB (private)
         uses: actions/upload-artifact@v4
         with:
           name: ltmo-${{ steps.version.outputs.name }}
           path: |
             dist/ltmo-${{ steps.version.outputs.name }}-debug.apk
-            dist/ltmo-${{ steps.version.outputs.name }}-release.apk
             dist/ltmo-${{ steps.version.outputs.name }}-release.aab
