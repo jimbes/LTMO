@@ -1,10 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/appointment.dart';
+import '../models/pending_action.dart';
 import '../services/api_service.dart';
 import '../services/local_notification_service.dart';
 import '../utils/notification_routing.dart';
 import 'auth_provider.dart';
+import 'connectivity_provider.dart';
+import 'sync_queue_provider.dart';
 
 final appointmentBoxProvider = FutureProvider<Box<Appointment>>((ref) async {
   return Hive.openBox<Appointment>('appointments_box');
@@ -92,8 +95,25 @@ class AppointmentNotifier extends StateNotifier<AsyncValue<void>> {
         'journey_stage_id': appointment.journeyStageId,
       };
 
-      final created = await apiService.createAppointment(data);
-      final createdAppointment = Appointment.fromJson(created);
+      Appointment createdAppointment;
+      try {
+        final created = await apiService.createAppointment(data);
+        createdAppointment = Appointment.fromJson(created);
+      } catch (e) {
+        if (!isNetworkError(e)) rethrow;
+        // Offline: keep a locally-generated id until the queued create
+        // syncs and the next successful fetch replaces it with the real one.
+        createdAppointment = appointment.copyWith(id: PendingAction.newId());
+        await ref.read(syncQueueProvider.notifier).enqueue(PendingAction(
+              id: PendingAction.newId(),
+              entityType: 'appointment',
+              operation: 'create',
+              payload: data,
+              createdAt: DateTime.now(),
+            ));
+        final box = await ref.read(appointmentBoxProvider.future);
+        await box.put(createdAppointment.id, createdAppointment);
+      }
 
       if (shouldNotifyCurrentUser(
         ref,
@@ -133,8 +153,25 @@ class AppointmentNotifier extends StateNotifier<AsyncValue<void>> {
         'journey_stage_id': appointment.journeyStageId,
       };
 
-      final updated = await apiService.updateAppointment(appointment.id, data);
-      final updatedAppointment = Appointment.fromJson(updated);
+      Appointment updatedAppointment;
+      try {
+        final updated = await apiService.updateAppointment(appointment.id, data);
+        updatedAppointment = Appointment.fromJson(updated);
+      } catch (e) {
+        if (!isNetworkError(e)) rethrow;
+        updatedAppointment = appointment;
+        await ref.read(syncQueueProvider.notifier).enqueue(PendingAction(
+              id: PendingAction.newId(),
+              entityType: 'appointment',
+              operation: 'update',
+              targetId: appointment.id,
+              payload: data,
+              knownUpdatedAt: appointment.updatedAt.toIso8601String(),
+              createdAt: DateTime.now(),
+            ));
+        final box = await ref.read(appointmentBoxProvider.future);
+        await box.put(appointment.id, appointment);
+      }
 
       if (shouldNotifyCurrentUser(
         ref,
@@ -163,7 +200,24 @@ class AppointmentNotifier extends StateNotifier<AsyncValue<void>> {
     try {
       state = const AsyncValue.loading();
       final apiService = ref.read(apiServiceProvider);
-      await apiService.deleteAppointment(id);
+      final box = await ref.read(appointmentBoxProvider.future);
+      final existing = box.get(id);
+
+      try {
+        await apiService.deleteAppointment(id);
+      } catch (e) {
+        if (!isNetworkError(e)) rethrow;
+        await ref.read(syncQueueProvider.notifier).enqueue(PendingAction(
+              id: PendingAction.newId(),
+              entityType: 'appointment',
+              operation: 'delete',
+              targetId: id,
+              payload: const {},
+              knownUpdatedAt: existing?.updatedAt.toIso8601String(),
+              createdAt: DateTime.now(),
+            ));
+        await box.delete(id);
+      }
 
       await LocalNotificationService.instance.cancelAppointmentReminder(id);
 
@@ -180,7 +234,26 @@ class AppointmentNotifier extends StateNotifier<AsyncValue<void>> {
     try {
       state = const AsyncValue.loading();
       final apiService = ref.read(apiServiceProvider);
-      await apiService.updateAppointment(id, {'completed': true});
+      final box = await ref.read(appointmentBoxProvider.future);
+      final existing = box.get(id);
+
+      try {
+        await apiService.updateAppointment(id, {'completed': true});
+      } catch (e) {
+        if (!isNetworkError(e)) rethrow;
+        await ref.read(syncQueueProvider.notifier).enqueue(PendingAction(
+              id: PendingAction.newId(),
+              entityType: 'appointment',
+              operation: 'update',
+              targetId: id,
+              payload: const {'completed': true},
+              knownUpdatedAt: existing?.updatedAt.toIso8601String(),
+              createdAt: DateTime.now(),
+            ));
+        if (existing != null) {
+          await box.put(id, existing.copyWith(completed: true));
+        }
+      }
 
       await LocalNotificationService.instance.cancelAppointmentReminder(id);
 

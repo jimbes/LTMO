@@ -1,7 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/medication_taken_log.dart';
+import '../models/pending_action.dart';
 import 'auth_provider.dart';
+import 'connectivity_provider.dart';
+import 'sync_queue_provider.dart';
 
 final logBoxProvider = FutureProvider<Box<MedicationTakenLog>>((ref) async {
   return Hive.openBox<MedicationTakenLog>('logs_box');
@@ -101,16 +104,45 @@ class MedicationLogNotifier extends StateNotifier<AsyncValue<void>> {
   /// schedules that genuinely have a single daily dose. Writes to the local
   /// cache immediately (so the UI reacts instantly) then syncs with the
   /// server and refetches.
-  Future<void> markTaken(String scheduleId, DateTime date, {String? time}) async {
+  Future<void> _markAndSync(
+    String scheduleId,
+    DateTime date,
+    String? time,
+    bool taken,
+  ) async {
     try {
       state = const AsyncValue.loading();
-      await _writeLocal(scheduleId, date, time, true);
+      final box = await ref.read(logBoxProvider.future);
+      final knownUpdatedAt = box.get(_logKey(scheduleId, date, time))?.updatedAt;
+
+      await _writeLocal(scheduleId, date, time, taken);
       final apiService = ref.read(apiServiceProvider);
-      await apiService.markMedicationTaken(
-        scheduleId,
-        _dateParam(date),
-        time: time,
-      );
+
+      try {
+        if (taken) {
+          await apiService.markMedicationTaken(scheduleId, _dateParam(date), time: time);
+        } else {
+          await apiService.markMedicationNotTaken(scheduleId, _dateParam(date), time: time);
+        }
+      } catch (e) {
+        if (!isNetworkError(e)) rethrow;
+        // The local write above already happened, so the UI already
+        // reflects this - just queue it to reach the server later.
+        await ref.read(syncQueueProvider.notifier).enqueue(PendingAction(
+              id: PendingAction.newId(),
+              entityType: 'medication_taken_log',
+              operation: 'update',
+              payload: {
+                'schedule_id': scheduleId,
+                'date': _dateParam(date),
+                'time': time,
+                'taken': taken,
+              },
+              knownUpdatedAt: knownUpdatedAt?.toIso8601String(),
+              createdAt: DateTime.now(),
+            ));
+      }
+
       ref.invalidate(medicationLogsProvider);
       await ref.read(medicationLogsProvider.future);
       state = const AsyncValue.data(null);
@@ -120,22 +152,11 @@ class MedicationLogNotifier extends StateNotifier<AsyncValue<void>> {
     }
   }
 
-  Future<void> markNotTaken(String scheduleId, DateTime date, {String? time}) async {
-    try {
-      state = const AsyncValue.loading();
-      await _writeLocal(scheduleId, date, time, false);
-      final apiService = ref.read(apiServiceProvider);
-      await apiService.markMedicationNotTaken(
-        scheduleId,
-        _dateParam(date),
-        time: time,
-      );
-      ref.invalidate(medicationLogsProvider);
-      await ref.read(medicationLogsProvider.future);
-      state = const AsyncValue.data(null);
-    } catch (e, st) {
-      state = AsyncValue.error(e, st);
-      rethrow;
-    }
+  Future<void> markTaken(String scheduleId, DateTime date, {String? time}) {
+    return _markAndSync(scheduleId, date, time, true);
+  }
+
+  Future<void> markNotTaken(String scheduleId, DateTime date, {String? time}) {
+    return _markAndSync(scheduleId, date, time, false);
   }
 }

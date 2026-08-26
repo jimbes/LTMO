@@ -18,6 +18,7 @@ import 'package:ltmo/models/journey_stage.dart';
 import 'package:ltmo/models/treatment_cycle.dart';
 import 'package:ltmo/models/practitioner.dart';
 import 'package:ltmo/models/notification_preference.dart';
+import 'package:ltmo/models/pending_action.dart';
 import 'package:ltmo/navigation/router.dart';
 import 'package:ltmo/data/mock_data.dart';
 import 'package:ltmo/services/local_notification_service.dart';
@@ -40,6 +41,7 @@ void main() async {
   Hive.registerAdapter(TreatmentCycleAdapter());
   Hive.registerAdapter(PractitionerAdapter());
   Hive.registerAdapter(NotificationPreferenceAdapter());
+  Hive.registerAdapter(PendingActionAdapter());
 
   // Open Hive boxes. If a box's on-disk data doesn't match the current
   // model shape (e.g. after adding a required field), fall back to a fresh
@@ -54,6 +56,7 @@ void main() async {
   await _openBoxSafely<TreatmentCycle>('treatment_cycles_box');
   await _openBoxSafely<Practitioner>('practitioners_box');
   await _openBoxSafely<NotificationPreference>('notif_prefs_box');
+  await _openBoxSafely<PendingAction>('pending_actions_box');
 
   // Don't seed mock data - users get real data from API after login
   // await seedMockData();

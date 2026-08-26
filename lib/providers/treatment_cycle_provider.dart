@@ -1,8 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/treatment_cycle.dart';
 import '../models/journey_stage.dart';
+import '../models/pending_action.dart';
+import '../models/treatment_cycle.dart';
 import 'auth_provider.dart';
+import 'connectivity_provider.dart';
 import 'journey_provider.dart';
+import 'sync_queue_provider.dart';
 
 final currentCycleProvider = FutureProvider<TreatmentCycle?>((ref) async {
   final apiService = ref.watch(apiServiceProvider);
@@ -47,12 +50,31 @@ class TreatmentCycleActions {
 
   Future<void> startNewCycle() async {
     final apiService = ref.read(apiServiceProvider);
-    await apiService.startNewTreatmentCycle();
+
+    try {
+      await apiService.startNewTreatmentCycle();
+    } catch (e) {
+      if (!isNetworkError(e)) rethrow;
+      // Nothing meaningful to write locally (no cache of cycles exists) -
+      // just queue it. The next successful sync creates the real cycle.
+      await ref.read(syncQueueProvider.notifier).enqueue(PendingAction(
+            id: PendingAction.newId(),
+            entityType: 'treatment_cycle',
+            operation: 'create',
+            payload: const {},
+            createdAt: DateTime.now(),
+          ));
+    }
 
     ref.invalidate(stagesProvider);
     ref.invalidate(currentCycleProvider);
     ref.invalidate(cycleHistoryProvider);
-    await ref.read(stagesProvider.future);
-    await ref.read(currentCycleProvider.future);
+    try {
+      await ref.read(stagesProvider.future);
+      await ref.read(currentCycleProvider.future);
+    } catch (_) {
+      // Still offline - the invalidation above is enough; the UI picks up
+      // fresh data once processQueue() succeeds later.
+    }
   }
 }

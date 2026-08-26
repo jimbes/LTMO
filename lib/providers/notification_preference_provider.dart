@@ -1,8 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/notification_preference.dart';
+import '../models/pending_action.dart';
 import '../services/api_service.dart';
 import 'auth_provider.dart';
+import 'connectivity_provider.dart';
+import 'sync_queue_provider.dart';
 
 final notifPrefBoxProvider = FutureProvider<Box<NotificationPreference>>((ref) async {
   return Hive.openBox<NotificationPreference>('notif_prefs_box');
@@ -60,7 +63,21 @@ class NotificationPreferenceNotifier extends StateNotifier<AsyncValue<void>> {
         'reminder_minutes_before': pref.reminderMinutesBefore,
       };
 
-      await apiService.createNotificationPreference(data);
+      try {
+        await apiService.createNotificationPreference(data);
+      } catch (e) {
+        if (!isNetworkError(e)) rethrow;
+        await ref.read(syncQueueProvider.notifier).enqueue(PendingAction(
+              id: PendingAction.newId(),
+              entityType: 'notification_preference',
+              operation: 'create',
+              payload: data,
+              createdAt: DateTime.now(),
+            ));
+        final box = await ref.read(notifPrefBoxProvider.future);
+        final local = pref.copyWith(id: PendingAction.newId());
+        await box.put(local.id, local);
+      }
 
       // Refresh the list
       ref.invalidate(notificationPreferencesProvider);
@@ -82,7 +99,22 @@ class NotificationPreferenceNotifier extends StateNotifier<AsyncValue<void>> {
         'reminder_minutes_before': pref.reminderMinutesBefore,
       };
 
-      await apiService.updateNotificationPreference(pref.id, data);
+      try {
+        await apiService.updateNotificationPreference(pref.id, data);
+      } catch (e) {
+        if (!isNetworkError(e)) rethrow;
+        await ref.read(syncQueueProvider.notifier).enqueue(PendingAction(
+              id: PendingAction.newId(),
+              entityType: 'notification_preference',
+              operation: 'update',
+              targetId: pref.id,
+              payload: data,
+              knownUpdatedAt: pref.updatedAt.toIso8601String(),
+              createdAt: DateTime.now(),
+            ));
+        final box = await ref.read(notifPrefBoxProvider.future);
+        await box.put(pref.id, pref);
+      }
 
       // Refresh the list
       ref.invalidate(notificationPreferencesProvider);
@@ -96,7 +128,24 @@ class NotificationPreferenceNotifier extends StateNotifier<AsyncValue<void>> {
     try {
       state = const AsyncValue.loading();
       final apiService = ref.read(apiServiceProvider);
-      await apiService.deleteNotificationPreference(id);
+      final box = await ref.read(notifPrefBoxProvider.future);
+      final existing = box.get(id);
+
+      try {
+        await apiService.deleteNotificationPreference(id);
+      } catch (e) {
+        if (!isNetworkError(e)) rethrow;
+        await ref.read(syncQueueProvider.notifier).enqueue(PendingAction(
+              id: PendingAction.newId(),
+              entityType: 'notification_preference',
+              operation: 'delete',
+              targetId: id,
+              payload: const {},
+              knownUpdatedAt: existing?.updatedAt.toIso8601String(),
+              createdAt: DateTime.now(),
+            ));
+        await box.delete(id);
+      }
 
       // Refresh the list
       ref.invalidate(notificationPreferencesProvider);

@@ -3,8 +3,11 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme/ltmo_colors.dart';
+import '../theme/app_colors.dart';
 import '../providers/data_refresh.dart';
 import '../providers/auth_provider.dart';
+import '../providers/connectivity_provider.dart';
+import '../providers/sync_queue_provider.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/splash/splash_screen.dart';
@@ -212,8 +215,51 @@ class _MainScaffoldState extends ConsumerState<MainScaffold>
 
   @override
   Widget build(BuildContext context) {
+    final isOnline = ref.watch(isOnlineProvider);
+    final pendingCount = ref.watch(pendingActionsProvider).valueOrNull?.length ?? 0;
+
+    // Sync immediately the moment connectivity comes back, instead of
+    // waiting for the next 30s tick.
+    ref.listen(isOnlineProvider, (previous, next) {
+      if (previous == false && next == true) {
+        refreshAllData(ref);
+      }
+    });
+
+    // Each conflict message is shown once, then cleared from the list -
+    // processQueue() only ever appends to it.
+    ref.listen(conflictMessagesProvider, (previous, next) {
+      if (next.isEmpty) return;
+      for (final message in next) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message), duration: const Duration(seconds: 5)),
+        );
+      }
+      ref.read(conflictMessagesProvider.notifier).state = [];
+    });
+
     return Scaffold(
-      body: widget.child,
+      body: Column(
+        children: [
+          if (!isOnline)
+            Container(
+              width: double.infinity,
+              color: AppColors.error,
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              child: SafeArea(
+                bottom: false,
+                child: Text(
+                  pendingCount > 0
+                      ? 'Connexion perdue - $pendingCount modification${pendingCount > 1 ? 's' : ''} en attente de synchronisation'
+                      : 'Connexion perdue - vos modifications seront synchronisées automatiquement',
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          Expanded(child: widget.child),
+        ],
+      ),
       bottomNavigationBar: BottomAppBar(
         color: Colors.white,
         height: 70,
