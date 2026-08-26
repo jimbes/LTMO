@@ -32,13 +32,14 @@ class AppointmentAdapter extends TypeAdapter<Appointment> {
       reminderOffsets: (fields[12] as List).cast<int>(),
       createdAt: fields[13] as DateTime,
       updatedAt: fields[14] as DateTime,
+      journeyStageId: fields[15] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, Appointment obj) {
     writer
-      ..writeByte(15)
+      ..writeByte(16)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -68,7 +69,9 @@ class AppointmentAdapter extends TypeAdapter<Appointment> {
       ..writeByte(13)
       ..write(obj.createdAt)
       ..writeByte(14)
-      ..write(obj.updatedAt);
+      ..write(obj.updatedAt)
+      ..writeByte(15)
+      ..write(obj.journeyStageId);
   }
 
   @override

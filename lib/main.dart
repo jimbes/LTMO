@@ -15,6 +15,7 @@ import 'package:ltmo/models/medication_schedule.dart';
 import 'package:ltmo/models/medication_taken_log.dart';
 import 'package:ltmo/models/appointment.dart';
 import 'package:ltmo/models/journey_stage.dart';
+import 'package:ltmo/models/treatment_cycle.dart';
 import 'package:ltmo/models/practitioner.dart';
 import 'package:ltmo/models/notification_preference.dart';
 import 'package:ltmo/navigation/router.dart';
@@ -36,6 +37,7 @@ void main() async {
   Hive.registerAdapter(MedicationTakenLogAdapter());
   Hive.registerAdapter(AppointmentAdapter());
   Hive.registerAdapter(JourneyStageAdapter());
+  Hive.registerAdapter(TreatmentCycleAdapter());
   Hive.registerAdapter(PractitionerAdapter());
   Hive.registerAdapter(NotificationPreferenceAdapter());
 
@@ -49,6 +51,7 @@ void main() async {
   await _openBoxSafely<MedicationTakenLog>('logs_box');
   await _openBoxSafely<Appointment>('appointments_box');
   await _openBoxSafely<JourneyStage>('stages_box');
+  await _openBoxSafely<TreatmentCycle>('treatment_cycles_box');
   await _openBoxSafely<Practitioner>('practitioners_box');
   await _openBoxSafely<NotificationPreference>('notif_prefs_box');
 

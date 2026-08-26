@@ -89,6 +89,7 @@ class AppointmentNotifier extends StateNotifier<AsyncValue<void>> {
         'description': appointment.description,
         'notify_user_1': appointment.notifyUser1,
         'notify_user_2': appointment.notifyUser2,
+        'journey_stage_id': appointment.journeyStageId,
       };
 
       final created = await apiService.createAppointment(data);
@@ -129,6 +130,7 @@ class AppointmentNotifier extends StateNotifier<AsyncValue<void>> {
         'description': appointment.description,
         'notify_user_1': appointment.notifyUser1,
         'notify_user_2': appointment.notifyUser2,
+        'journey_stage_id': appointment.journeyStageId,
       };
 
       final updated = await apiService.updateAppointment(appointment.id, data);

@@ -239,6 +239,26 @@ class ApiService {
     return response.data['journey_stage'] ?? {};
   }
 
+  Future<List<dynamic>> getTreatmentCycles() async {
+    final response = await _dio.get('/treatment-cycles');
+    return response.data['treatment_cycles'] ?? [];
+  }
+
+  Future<Map<String, dynamic>> getCurrentTreatmentCycle() async {
+    final response = await _dio.get('/treatment-cycles/current');
+    return response.data['treatment_cycle'] ?? {};
+  }
+
+  Future<Map<String, dynamic>> startNewTreatmentCycle() async {
+    final response = await _dio.post('/treatment-cycles/start-new');
+    return response.data['treatment_cycle'] ?? {};
+  }
+
+  Future<List<dynamic>> getTreatmentCycleStages(String cycleId) async {
+    final response = await _dio.get('/treatment-cycles/$cycleId/journey-stages');
+    return response.data['journey_stages'] ?? [];
+  }
+
   Future<List<dynamic>> getPractitioners() async {
     final response = await _dio.get('/practitioners');
     return response.data['practitioners'] ?? [];

@@ -1,9 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/appointment.dart';
+import '../models/journey_stage.dart';
+import '../providers/journey_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_typography.dart';
+import '../utils/phase_labels.dart';
 import 'reminder_offsets_picker.dart';
+
+String _stageOptionLabel(JourneyStage stage) {
+  final custom = stage.customName;
+  if (custom != null && custom.trim().isNotEmpty) return custom.trim();
+  return getPhaseLabel(stage.type);
+}
 
 typedef AppointmentFormCallback = Future<void> Function(Appointment appointment);
 
@@ -51,6 +60,7 @@ class _AppointmentFormState extends ConsumerState<AppointmentForm> {
   late TimeOfDay _selectedTime;
   late bool _reminderEnabled;
   late List<int> _reminderOffsets;
+  String? _selectedStageId;
   bool _saving = false;
 
   @override
@@ -73,6 +83,7 @@ class _AppointmentFormState extends ConsumerState<AppointmentForm> {
         ? List.from(apt!.reminderOffsets)
         : [60];
     _reminderEnabled = apt == null || apt.reminderOffsets.isNotEmpty;
+    _selectedStageId = apt?.journeyStageId;
   }
 
   @override
@@ -160,6 +171,7 @@ class _AppointmentFormState extends ConsumerState<AppointmentForm> {
       notifyUser2: apt?.notifyUser2 ?? true,
       createdAt: apt?.createdAt ?? now,
       updatedAt: now,
+      journeyStageId: _selectedStageId,
     );
 
     try {
@@ -213,6 +225,61 @@ class _AppointmentFormState extends ConsumerState<AppointmentForm> {
               ),
             );
           }).toList(),
+        ),
+        const SizedBox(height: 24),
+
+        // Optional link to a journey stage - lets the app offer quick
+        // "mark stage skipped" / "start new cycle" actions once this
+        // appointment is edited/completed.
+        Text(
+          'ÉTAPE LIÉE (OPTIONNEL)',
+          style: AppTypography.labelSmall.copyWith(
+            color: AppColors.inkTertiary,
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Consumer(
+          builder: (context, ref, _) {
+            final stagesAsync = ref.watch(stagesProvider);
+            return stagesAsync.when(
+              data: (stages) {
+                final validSelection = stages.any((s) => s.id == _selectedStageId)
+                    ? _selectedStageId
+                    : null;
+                return Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border.all(color: AppColors.border1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String?>(
+                      isExpanded: true,
+                      value: validSelection,
+                      hint: const Text('Aucune'),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('Aucune'),
+                        ),
+                        ...stages.map((stage) => DropdownMenuItem<String?>(
+                              value: stage.id,
+                              child: Text(_stageOptionLabel(stage)),
+                            )),
+                      ],
+                      onChanged: (value) {
+                        setState(() => _selectedStageId = value);
+                      },
+                    ),
+                  ),
+                );
+              },
+              loading: () => const LinearProgressIndicator(),
+              error: (_, __) => const SizedBox.shrink(),
+            );
+          },
         ),
         const SizedBox(height: 24),
 
