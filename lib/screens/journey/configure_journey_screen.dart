@@ -3,23 +3,40 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_typography.dart';
 import '../../providers/journey_provider.dart';
+import '../../providers/treatment_cycle_provider.dart';
 import '../../models/journey_stage.dart';
 import '../../utils/phase_labels.dart';
+import 'cycle_history_screen.dart';
 
-String _displayLabel(JourneyStage stage) {
+String displayLabelForStage(JourneyStage stage) {
   final custom = stage.customName;
   if (custom != null && custom.trim().isNotEmpty) return custom.trim();
   return getPhaseLabel(stage.type);
 }
 
-Color _getPhaseColor(String status) {
+Color phaseColorForStatus(String status) {
   switch (status) {
     case 'done':
       return AppColors.sage;
     case 'in_progress':
       return AppColors.clay;
+    case 'skipped':
+      return AppColors.inkDisabled;
     default:
       return AppColors.border1;
+  }
+}
+
+String statusLabelFor(String status) {
+  switch (status) {
+    case 'done':
+      return 'Terminé';
+    case 'in_progress':
+      return 'En cours';
+    case 'skipped':
+      return 'Ignorée';
+    default:
+      return 'À venir';
   }
 }
 
@@ -76,14 +93,98 @@ class ConfigureJourneyScreen extends ConsumerWidget {
     );
   }
 
+  Future<void> _confirmStartNewCycle(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Démarrer un nouveau cycle ?'),
+        content: const Text(
+          'Le parcours actuel sera archivé (consultable dans l\'historique) '
+          'et un nouveau parcours vide démarrera.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Démarrer'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await ref.read(treatmentCycleActionsProvider).startNewCycle();
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Nouveau cycle démarré')),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erreur: $e')),
+          );
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final stagesAsync = ref.watch(stagesProvider);
+    final currentCycleAsync = ref.watch(currentCycleProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Configurer mon parcours FIV'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Configurer mon parcours FIV'),
+            currentCycleAsync.when(
+              data: (cycle) => cycle != null
+                  ? Text(
+                      'Cycle ${cycle.cycleNumber}',
+                      style: AppTypography.labelSmall
+                          .copyWith(color: AppColors.inkTertiary),
+                    )
+                  : const SizedBox.shrink(),
+              loading: () => const SizedBox.shrink(),
+              error: (_, __) => const SizedBox.shrink(),
+            ),
+          ],
+        ),
         elevation: 0,
+        actions: [
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'history') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const CycleHistoryScreen(),
+                  ),
+                );
+              } else if (value == 'new_cycle') {
+                _confirmStartNewCycle(context, ref);
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'history',
+                child: Text('Historique des cycles'),
+              ),
+              PopupMenuItem(
+                value: 'new_cycle',
+                child: Text('Démarrer un nouveau cycle'),
+              ),
+            ],
+          ),
+        ],
       ),
       body: stagesAsync.when(
         data: (stages) {
@@ -151,7 +252,7 @@ class ConfigureJourneyScreen extends ConsumerWidget {
                                       height: 48,
                                       decoration: BoxDecoration(
                                         shape: BoxShape.circle,
-                                        color: _getPhaseColor(status),
+                                        color: phaseColorForStatus(status),
                                       ),
                                       child: status == 'done'
                                           ? const Icon(Icons.check,
@@ -160,7 +261,12 @@ class ConfigureJourneyScreen extends ConsumerWidget {
                                               ? const Icon(Icons.play_arrow,
                                                   color: Colors.white,
                                                   size: 24)
-                                              : null,
+                                              : status == 'skipped'
+                                                  ? const Icon(
+                                                      Icons.remove,
+                                                      color: Colors.white,
+                                                      size: 24)
+                                                  : null,
                                     ),
                                     const SizedBox(width: 16),
                                     Expanded(
@@ -169,8 +275,17 @@ class ConfigureJourneyScreen extends ConsumerWidget {
                                             CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            _displayLabel(stage),
-                                            style: AppTypography.titleSmall,
+                                            displayLabelForStage(stage),
+                                            style: AppTypography.titleSmall
+                                                .copyWith(
+                                              color: status == 'skipped'
+                                                  ? AppColors.inkTertiary
+                                                  : null,
+                                              decoration: status == 'skipped'
+                                                  ? TextDecoration
+                                                      .lineThrough
+                                                  : null,
+                                            ),
                                           ),
                                           const SizedBox(height: 4),
                                           Text(
@@ -188,20 +303,16 @@ class ConfigureJourneyScreen extends ConsumerWidget {
                                                 .symmetric(
                                                 horizontal: 8, vertical: 4),
                                             decoration: BoxDecoration(
-                                              color: _getPhaseColor(status)
+                                              color: phaseColorForStatus(status)
                                                   .withAlpha(30),
                                               borderRadius:
                                                   BorderRadius.circular(6),
                                             ),
                                             child: Text(
-                                              status == 'done'
-                                                  ? 'Terminé'
-                                                  : status == 'in_progress'
-                                                      ? 'En cours'
-                                                      : 'À venir',
+                                              statusLabelFor(status),
                                               style: TextStyle(
                                                 fontSize: 12,
-                                                color: _getPhaseColor(status),
+                                                color: phaseColorForStatus(status),
                                                 fontWeight: FontWeight.w600,
                                               ),
                                             ),
@@ -282,7 +393,7 @@ class _EditStageSheetState extends ConsumerState<_EditStageSheet> {
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: _displayLabel(widget.stage));
+    _nameController = TextEditingController(text: displayLabelForStage(widget.stage));
     _selectedStartDate = widget.stage.startDate;
     _selectedStatus = widget.stage.status;
     _selectedEndDate = widget.stage.endDate;
@@ -433,7 +544,7 @@ class _EditStageSheetState extends ConsumerState<_EditStageSheet> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Modifier ${_displayLabel(widget.stage)}',
+              'Modifier ${displayLabelForStage(widget.stage)}',
               style: AppTypography.titleLarge,
             ),
             const SizedBox(height: 24),
@@ -669,15 +780,11 @@ class _EditStageSheetState extends ConsumerState<_EditStageSheet> {
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
-              children: ['upcoming', 'in_progress', 'done'].map((status) {
+              children: ['upcoming', 'in_progress', 'done', 'skipped']
+                  .map((status) {
                 final isSelected = _selectedStatus == status;
-                final statusLabel = status == 'upcoming'
-                    ? 'À venir'
-                    : status == 'in_progress'
-                        ? 'En cours'
-                        : 'Terminé';
                 return FilterChip(
-                  label: Text(statusLabel),
+                  label: Text(statusLabelFor(status)),
                   selected: isSelected,
                   onSelected: (selected) {
                     setState(() {
@@ -687,7 +794,9 @@ class _EditStageSheetState extends ConsumerState<_EditStageSheet> {
                       }
                     });
                   },
-                  selectedColor: AppColors.sage,
+                  selectedColor: status == 'skipped'
+                      ? AppColors.inkDisabled
+                      : AppColors.sage,
                   labelStyle: TextStyle(
                     color: isSelected ? Colors.white : AppColors.ink,
                   ),

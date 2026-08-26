@@ -51,6 +51,12 @@ class Appointment extends HiveObject {
   @HiveField(14)
   DateTime updatedAt;
 
+  // The journey stage this appointment relates to, if any - lets the app
+  // offer quick "mark stage skipped" / "start new cycle" actions right after
+  // the appointment once we know what it was for.
+  @HiveField(15)
+  String? journeyStageId;
+
   Appointment({
     required this.id,
     required this.coupleId,
@@ -67,6 +73,7 @@ class Appointment extends HiveObject {
     required this.reminderOffsets,
     required this.createdAt,
     required this.updatedAt,
+    this.journeyStageId,
   });
 
   Appointment copyWith({
@@ -85,6 +92,8 @@ class Appointment extends HiveObject {
     List<int>? reminderOffsets,
     DateTime? createdAt,
     DateTime? updatedAt,
+    String? journeyStageId,
+    bool clearJourneyStageId = false,
   }) {
     return Appointment(
       id: id ?? this.id,
@@ -102,6 +111,9 @@ class Appointment extends HiveObject {
       reminderOffsets: reminderOffsets ?? this.reminderOffsets,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      journeyStageId: clearJourneyStageId
+          ? null
+          : (journeyStageId ?? this.journeyStageId),
     );
   }
 
@@ -142,6 +154,7 @@ class Appointment extends HiveObject {
           [60],
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
+      journeyStageId: json['journey_stage_id']?.toString(),
     );
   }
 
@@ -162,6 +175,7 @@ class Appointment extends HiveObject {
       'reminder_offsets': reminderOffsets,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
+      'journey_stage_id': journeyStageId,
     };
   }
 }

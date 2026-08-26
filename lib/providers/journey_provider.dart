@@ -52,7 +52,8 @@ JourneyStage? _getCurrentPhase(List<JourneyStage> stages) {
       return stage;
     }
   }
-  return stages.isNotEmpty ? stages.first : null;
+  final active = stages.where((s) => s.status != 'skipped');
+  return active.isNotEmpty ? active.first : null;
 }
 
 final journeyProvider =
@@ -82,6 +83,14 @@ class JourneyNotifier extends StateNotifier<AsyncValue<void>> {
     for (var i = 0; i < stages.length; i++) {
       final isLast = i == stages.length - 1;
       var stage = stages[i];
+
+      if (stage.status == 'skipped') {
+        // Excluded from the date chain entirely: keep its own dates as-is
+        // and don't let it push where the next stage starts - the chain
+        // continues from the last non-skipped stage's end.
+        result.add(stage.copyWith(order: i));
+        continue;
+      }
 
       final start = i == 0
           ? stage.startDate
