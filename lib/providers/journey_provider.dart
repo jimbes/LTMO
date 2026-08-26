@@ -1,7 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/journey_stage.dart';
+import '../models/pending_action.dart';
 import 'auth_provider.dart';
+import 'connectivity_provider.dart';
+import 'sync_queue_provider.dart';
 
 export '../utils/phase_labels.dart' show defaultJourneyStageTypes;
 
@@ -148,8 +151,24 @@ class JourneyNotifier extends StateNotifier<AsyncValue<void>> {
 
   Future<void> _persistAll(List<JourneyStage> stages) async {
     final apiService = ref.read(apiServiceProvider);
+    final box = await ref.read(stageBoxProvider.future);
     for (final stage in stages) {
-      await apiService.updateJourneyStage(stage.id, _toApiPayload(stage));
+      final payload = _toApiPayload(stage);
+      try {
+        await apiService.updateJourneyStage(stage.id, payload);
+      } catch (e) {
+        if (!isNetworkError(e)) rethrow;
+        await ref.read(syncQueueProvider.notifier).enqueue(PendingAction(
+              id: PendingAction.newId(),
+              entityType: 'journey_stage',
+              operation: 'update',
+              targetId: stage.id,
+              payload: payload,
+              knownUpdatedAt: stage.updatedAt.toIso8601String(),
+              createdAt: DateTime.now(),
+            ));
+        await box.put(stage.id, stage);
+      }
     }
     // Invalidate and wait for the refetch to complete so that by the time
     // this returns, any widget watching stagesProvider already has the
@@ -190,8 +209,25 @@ class JourneyNotifier extends StateNotifier<AsyncValue<void>> {
 
       // Create the new stage on the server first to get a real id
       final createdData = _toApiPayload(recomputed.last);
-      final created = await apiService.createJourneyStage(createdData);
-      final createdId = created['id'].toString();
+      String createdId;
+      var wentOffline = false;
+      try {
+        final created = await apiService.createJourneyStage(createdData);
+        createdId = created['id'].toString();
+      } catch (e) {
+        if (!isNetworkError(e)) rethrow;
+        wentOffline = true;
+        createdId = PendingAction.newId();
+        await ref.read(syncQueueProvider.notifier).enqueue(PendingAction(
+              id: PendingAction.newId(),
+              entityType: 'journey_stage',
+              operation: 'create',
+              payload: createdData,
+              createdAt: DateTime.now(),
+            ));
+        final box = await ref.read(stageBoxProvider.future);
+        await box.put(createdId, recomputed.last.copyWith(id: createdId));
+      }
 
       // Persist recomputed dates for the existing stages (order/end date may
       // have shifted now that a new stage follows them)
@@ -200,11 +236,16 @@ class JourneyNotifier extends StateNotifier<AsyncValue<void>> {
       await _persistAll(existingRecomputed);
 
       // Ensure the newly created stage also has the right order (already
-      // correct from createdData, but re-send in case of race conditions)
-      await apiService.updateJourneyStage(
-        createdId,
-        _toApiPayload(recomputed.last),
-      );
+      // correct from createdData, but re-send in case of race conditions) -
+      // skipped when the create itself was just queued offline, since the
+      // queued payload already has the right order and there's no real id
+      // yet to target.
+      if (!wentOffline) {
+        await apiService.updateJourneyStage(
+          createdId,
+          _toApiPayload(recomputed.last),
+        );
+      }
 
       ref.invalidate(stagesProvider);
       await ref.read(stagesProvider.future);
@@ -221,8 +262,25 @@ class JourneyNotifier extends StateNotifier<AsyncValue<void>> {
       state = const AsyncValue.loading();
       final apiService = ref.read(apiServiceProvider);
       final current = await ref.read(stagesProvider.future);
+      final existingMatches = current.where((s) => s.id == id).toList();
+      final existing = existingMatches.isEmpty ? null : existingMatches.first;
 
-      await apiService.deleteJourneyStage(id);
+      try {
+        await apiService.deleteJourneyStage(id);
+      } catch (e) {
+        if (!isNetworkError(e)) rethrow;
+        await ref.read(syncQueueProvider.notifier).enqueue(PendingAction(
+              id: PendingAction.newId(),
+              entityType: 'journey_stage',
+              operation: 'delete',
+              targetId: id,
+              payload: const {},
+              knownUpdatedAt: existing?.updatedAt.toIso8601String(),
+              createdAt: DateTime.now(),
+            ));
+        final box = await ref.read(stageBoxProvider.future);
+        await box.delete(id);
+      }
 
       final remaining = current.where((s) => s.id != id).toList();
       final recomputed = _recomputeChain(remaining);
@@ -280,29 +338,44 @@ class JourneyNotifier extends StateNotifier<AsyncValue<void>> {
     try {
       state = const AsyncValue.loading();
       final apiService = ref.read(apiServiceProvider);
+      final box = await ref.read(stageBoxProvider.future);
       final current = await ref.read(stagesProvider.future);
+
+      Future<void> updateWithFallback(
+        JourneyStage stage,
+        Map<String, dynamic> payload,
+      ) async {
+        try {
+          await apiService.updateJourneyStage(stage.id, payload);
+        } catch (e) {
+          if (!isNetworkError(e)) rethrow;
+          await ref.read(syncQueueProvider.notifier).enqueue(PendingAction(
+                id: PendingAction.newId(),
+                entityType: 'journey_stage',
+                operation: 'update',
+                targetId: stage.id,
+                payload: payload,
+                knownUpdatedAt: stage.updatedAt.toIso8601String(),
+                createdAt: DateTime.now(),
+              ));
+          await box.put(stage.id, stage.copyWith(status: payload['status'] as String));
+        }
+      }
 
       final previouslyCurrent = current
           .where((s) => s.status == 'in_progress' && s.id != stageId);
       for (final stage in previouslyCurrent) {
-        await apiService.updateJourneyStage(
-          stage.id,
-          {'status': 'done'},
-        );
+        await updateWithFallback(stage, {'status': 'done'});
       }
 
       final target = current.firstWhere((s) => s.id == stageId);
-      await apiService.updateJourneyStage(
-        stageId,
-        {
-          'status': 'in_progress',
-          // Only stamp a start date if this stage never had one recorded
-          // (a fresh "tag" pick) - don't overwrite genuine historical data.
-          if (target.status == 'upcoming')
-            'start_date':
-                DateTime.now().toIso8601String().split('T')[0],
-        },
-      );
+      await updateWithFallback(target, {
+        'status': 'in_progress',
+        // Only stamp a start date if this stage never had one recorded
+        // (a fresh "tag" pick) - don't overwrite genuine historical data.
+        if (target.status == 'upcoming')
+          'start_date': DateTime.now().toIso8601String().split('T')[0],
+      });
 
       ref.invalidate(stagesProvider);
       await ref.read(stagesProvider.future);

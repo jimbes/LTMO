@@ -66,6 +66,9 @@ dependencies:
   # App version display (splash screen, settings)
   package_info_plus: ^10.2.1
 
+  # Network connectivity detection (offline mode banner + write queue)
+  connectivity_plus: ^6.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

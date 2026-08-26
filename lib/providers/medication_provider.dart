@@ -2,10 +2,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/medication.dart';
 import '../models/medication_schedule.dart';
+import '../models/pending_action.dart';
 import '../services/api_service.dart';
 import '../services/local_notification_service.dart';
 import '../utils/notification_routing.dart';
 import 'auth_provider.dart';
+import 'connectivity_provider.dart';
+import 'sync_queue_provider.dart';
 
 final medicationBoxProvider = FutureProvider<Box<Medication>>((ref) async {
   return Hive.openBox<Medication>('medications_box');
@@ -95,8 +98,23 @@ class MedicationNotifier extends StateNotifier<AsyncValue<void>> {
         'description': medication.description,
       };
 
-      final created = await apiService.createMedication(data);
-      final createdMedication = Medication.fromJson(created);
+      Medication createdMedication;
+      try {
+        final created = await apiService.createMedication(data);
+        createdMedication = Medication.fromJson(created);
+      } catch (e) {
+        if (!isNetworkError(e)) rethrow;
+        createdMedication = medication.copyWith(id: PendingAction.newId());
+        await ref.read(syncQueueProvider.notifier).enqueue(PendingAction(
+              id: PendingAction.newId(),
+              entityType: 'medication',
+              operation: 'create',
+              payload: data,
+              createdAt: DateTime.now(),
+            ));
+        final box = await ref.read(medicationBoxProvider.future);
+        await box.put(createdMedication.id, createdMedication);
+      }
 
       // Refresh the list
       ref.invalidate(medicationsProvider);
@@ -122,7 +140,22 @@ class MedicationNotifier extends StateNotifier<AsyncValue<void>> {
         'description': medication.description,
       };
 
-      await apiService.updateMedication(medication.id, data);
+      try {
+        await apiService.updateMedication(medication.id, data);
+      } catch (e) {
+        if (!isNetworkError(e)) rethrow;
+        await ref.read(syncQueueProvider.notifier).enqueue(PendingAction(
+              id: PendingAction.newId(),
+              entityType: 'medication',
+              operation: 'update',
+              targetId: medication.id,
+              payload: data,
+              knownUpdatedAt: medication.updatedAt.toIso8601String(),
+              createdAt: DateTime.now(),
+            ));
+        final box = await ref.read(medicationBoxProvider.future);
+        await box.put(medication.id, medication);
+      }
 
       // Refresh the list
       ref.invalidate(medicationsProvider);
@@ -136,7 +169,24 @@ class MedicationNotifier extends StateNotifier<AsyncValue<void>> {
     try {
       state = const AsyncValue.loading();
       final apiService = ref.read(apiServiceProvider);
-      await apiService.deleteMedication(id);
+      final box = await ref.read(medicationBoxProvider.future);
+      final existing = box.get(id);
+
+      try {
+        await apiService.deleteMedication(id);
+      } catch (e) {
+        if (!isNetworkError(e)) rethrow;
+        await ref.read(syncQueueProvider.notifier).enqueue(PendingAction(
+              id: PendingAction.newId(),
+              entityType: 'medication',
+              operation: 'delete',
+              targetId: id,
+              payload: const {},
+              knownUpdatedAt: existing?.updatedAt.toIso8601String(),
+              createdAt: DateTime.now(),
+            ));
+        await box.delete(id);
+      }
 
       // Refresh the list
       ref.invalidate(medicationsProvider);
@@ -174,8 +224,23 @@ class MedicationNotifier extends StateNotifier<AsyncValue<void>> {
         'journey_stage_id': schedule.journeyStageId,
       };
 
-      final created = await apiService.createSchedule(data);
-      final createdSchedule = MedicationSchedule.fromJson(created);
+      MedicationSchedule createdSchedule;
+      try {
+        final created = await apiService.createSchedule(data);
+        createdSchedule = MedicationSchedule.fromJson(created);
+      } catch (e) {
+        if (!isNetworkError(e)) rethrow;
+        createdSchedule = schedule.copyWith(id: PendingAction.newId());
+        await ref.read(syncQueueProvider.notifier).enqueue(PendingAction(
+              id: PendingAction.newId(),
+              entityType: 'schedule',
+              operation: 'create',
+              payload: data,
+              createdAt: DateTime.now(),
+            ));
+        final box = await ref.read(scheduleBoxProvider.future);
+        await box.put(createdSchedule.id, createdSchedule);
+      }
 
       if (shouldNotifyCurrentUser(
         ref,
@@ -213,8 +278,25 @@ class MedicationNotifier extends StateNotifier<AsyncValue<void>> {
         'journey_stage_id': schedule.journeyStageId,
       };
 
-      final updated = await apiService.updateSchedule(schedule.id, data);
-      final updatedSchedule = MedicationSchedule.fromJson(updated);
+      MedicationSchedule updatedSchedule;
+      try {
+        final updated = await apiService.updateSchedule(schedule.id, data);
+        updatedSchedule = MedicationSchedule.fromJson(updated);
+      } catch (e) {
+        if (!isNetworkError(e)) rethrow;
+        updatedSchedule = schedule;
+        await ref.read(syncQueueProvider.notifier).enqueue(PendingAction(
+              id: PendingAction.newId(),
+              entityType: 'schedule',
+              operation: 'update',
+              targetId: schedule.id,
+              payload: data,
+              knownUpdatedAt: schedule.updatedAt.toIso8601String(),
+              createdAt: DateTime.now(),
+            ));
+        final box = await ref.read(scheduleBoxProvider.future);
+        await box.put(schedule.id, schedule);
+      }
 
       if (shouldNotifyCurrentUser(
         ref,
@@ -249,7 +331,22 @@ class MedicationNotifier extends StateNotifier<AsyncValue<void>> {
       final matches = existingSchedules.where((s) => s.id == id).toList();
       final schedule = matches.isEmpty ? null : matches.first;
 
-      await apiService.deleteSchedule(id);
+      try {
+        await apiService.deleteSchedule(id);
+      } catch (e) {
+        if (!isNetworkError(e)) rethrow;
+        await ref.read(syncQueueProvider.notifier).enqueue(PendingAction(
+              id: PendingAction.newId(),
+              entityType: 'schedule',
+              operation: 'delete',
+              targetId: id,
+              payload: const {},
+              knownUpdatedAt: schedule?.updatedAt.toIso8601String(),
+              createdAt: DateTime.now(),
+            ));
+        final box = await ref.read(scheduleBoxProvider.future);
+        await box.delete(id);
+      }
 
       if (schedule != null) {
         await LocalNotificationService.instance

@@ -1,6 +1,17 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+/// True for a DioException that means "the request never reached the
+/// server" (no connectivity, DNS failure, timeout) as opposed to a real HTTP
+/// error response (422, 409, 500...) which means the server WAS reached.
+bool isNetworkErrorType(DioExceptionType type) {
+  return type == DioExceptionType.connectionError ||
+      type == DioExceptionType.connectionTimeout ||
+      type == DioExceptionType.receiveTimeout ||
+      type == DioExceptionType.sendTimeout ||
+      type == DioExceptionType.unknown;
+}
+
 class ApiService {
   static const String baseUrl = 'https://pma.besse.dev/api/v1';
 
@@ -10,6 +21,12 @@ class ApiService {
   /// Called when a request comes back 401 (token expired/revoked server-side).
   /// Set by the app layer so it can clear auth state and route to login.
   void Function()? onSessionExpired;
+
+  /// Called whenever a request fails with a genuine network error (no
+  /// response reached the device at all) - set by connectivity_provider.dart
+  /// so it can flip the app's online/offline state even when the OS still
+  /// reports an active network interface (e.g. wifi with no real internet).
+  void Function()? onNetworkError;
 
   ApiService() {
     _dio = Dio(BaseOptions(
@@ -35,6 +52,9 @@ class ApiService {
           // than silently keep serving stale cached data.
           await _secureStorage.delete(key: 'auth_token');
           onSessionExpired?.call();
+        }
+        if (isNetworkErrorType(error.type)) {
+          onNetworkError?.call();
         }
         return handler.next(error);
       },
@@ -144,8 +164,8 @@ class ApiService {
     return response.data['medication'] ?? {};
   }
 
-  Future<void> deleteMedication(String id) async {
-    await _dio.delete('/medications/$id');
+  Future<void> deleteMedication(String id, {Map<String, dynamic>? data}) async {
+    await _dio.delete('/medications/$id', data: data);
   }
 
   Future<List<dynamic>> getSchedules() async {
@@ -163,8 +183,8 @@ class ApiService {
     return response.data['schedule'] ?? {};
   }
 
-  Future<void> deleteSchedule(String id) async {
-    await _dio.delete('/schedules/$id');
+  Future<void> deleteSchedule(String id, {Map<String, dynamic>? data}) async {
+    await _dio.delete('/schedules/$id', data: data);
   }
 
   Future<List<dynamic>> getMedicationTakenLogs() async {
@@ -176,10 +196,15 @@ class ApiService {
     String scheduleId,
     String date, {
     String? time,
+    String? clientKnownUpdatedAt,
   }) async {
     final response = await _dio.post(
       '/schedules/$scheduleId/mark-taken',
-      data: {'date': date, 'time': time},
+      data: {
+        'date': date,
+        'time': time,
+        'client_known_updated_at': clientKnownUpdatedAt,
+      },
     );
     return response.data['log'] ?? {};
   }
@@ -188,10 +213,15 @@ class ApiService {
     String scheduleId,
     String date, {
     String? time,
+    String? clientKnownUpdatedAt,
   }) async {
     final response = await _dio.put(
       '/schedules/$scheduleId/mark-not-taken',
-      data: {'date': date, 'time': time},
+      data: {
+        'date': date,
+        'time': time,
+        'client_known_updated_at': clientKnownUpdatedAt,
+      },
     );
     return response.data['log'] ?? {};
   }
@@ -211,8 +241,8 @@ class ApiService {
     return response.data['appointment'] ?? {};
   }
 
-  Future<void> deleteAppointment(String id) async {
-    await _dio.delete('/appointments/$id');
+  Future<void> deleteAppointment(String id, {Map<String, dynamic>? data}) async {
+    await _dio.delete('/appointments/$id', data: data);
   }
 
   Future<List<dynamic>> getJourneyStages() async {
@@ -230,12 +260,15 @@ class ApiService {
     return response.data['journey_stage'] ?? {};
   }
 
-  Future<void> deleteJourneyStage(String id) async {
-    await _dio.delete('/journey-stages/$id');
+  Future<void> deleteJourneyStage(String id, {Map<String, dynamic>? data}) async {
+    await _dio.delete('/journey-stages/$id', data: data);
   }
 
-  Future<Map<String, dynamic>> closeJourneyStage(String id) async {
-    final response = await _dio.post('/journey-stages/$id/close');
+  Future<Map<String, dynamic>> closeJourneyStage(String id, {String? clientKnownUpdatedAt}) async {
+    final response = await _dio.post(
+      '/journey-stages/$id/close',
+      data: {'client_known_updated_at': clientKnownUpdatedAt},
+    );
     return response.data['journey_stage'] ?? {};
   }
 
@@ -274,8 +307,8 @@ class ApiService {
     return response.data['practitioner'] ?? {};
   }
 
-  Future<void> deletePractitioner(String id) async {
-    await _dio.delete('/practitioners/$id');
+  Future<void> deletePractitioner(String id, {Map<String, dynamic>? data}) async {
+    await _dio.delete('/practitioners/$id', data: data);
   }
 
   Future<List<dynamic>> getNotificationPreferences() async {
@@ -293,8 +326,8 @@ class ApiService {
     return response.data['notification_preference'] ?? {};
   }
 
-  Future<void> deleteNotificationPreference(String id) async {
-    await _dio.delete('/notification-preferences/$id');
+  Future<void> deleteNotificationPreference(String id, {Map<String, dynamic>? data}) async {
+    await _dio.delete('/notification-preferences/$id', data: data);
   }
 
   Future<Map<String, dynamic>?> getPartner() async {

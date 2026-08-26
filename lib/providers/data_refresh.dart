@@ -5,6 +5,7 @@ import 'medication_logs_provider.dart';
 import 'journey_provider.dart';
 import 'partner_provider.dart';
 import 'practitioner_provider.dart';
+import 'sync_queue_provider.dart';
 import '../services/local_notification_service.dart';
 import '../utils/notification_routing.dart';
 
@@ -13,6 +14,11 @@ import '../utils/notification_routing.dart';
 /// repeatedly: invalidating just discards the cached Future, it doesn't
 /// accumulate memory.
 Future<void> refreshAllData(WidgetRef ref) async {
+  // Replay any offline writes first, so the fetches below pick up this
+  // device's own pending changes (already applied server-side by now)
+  // instead of momentarily showing stale pre-sync data.
+  await ref.read(syncQueueProvider.notifier).processQueue();
+
   ref.invalidate(medicationsProvider);
   ref.invalidate(schedulesProvider);
   ref.invalidate(medicationLogsProvider);
