@@ -164,6 +164,17 @@ class _MedicationFormState extends ConsumerState<MedicationForm> {
       return;
     }
 
+    final effectiveStartDate = widget.initialSchedule?.startDate ??
+        DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+    if (_selectedEndDate != null && _selectedEndDate!.isBefore(effectiveStartDate)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('La date de fin doit être après la date de début'),
+        ),
+      );
+      return;
+    }
+
     setState(() => _submitting = true);
 
     try {
@@ -440,7 +451,21 @@ class _MedicationFormState extends ConsumerState<MedicationForm> {
                     return items;
                   })(),
                   onChanged: (value) {
-                    setState(() => _selectedJourneyStageId = value);
+                    setState(() {
+                      _selectedJourneyStageId = value;
+                      // Convenience default only, not a lasting link: picking
+                      // a stage suggests stopping the treatment when that
+                      // stage ends, but the date stays freely editable below
+                      // right after - e.g. if treatment gets extended past
+                      // what the stage originally planned, or the couple
+                      // moves on to a different stage than expected.
+                      if (value != null) {
+                        final stage = stages.where((s) => s.id == value).toList();
+                        if (stage.isNotEmpty) {
+                          _selectedEndDate = stage.first.endDate;
+                        }
+                      }
+                    });
                   },
                 );
               },
