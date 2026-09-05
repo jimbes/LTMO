@@ -156,9 +156,14 @@ class TreatmentListScreen extends ConsumerWidget {
         data: (meds) {
           final activeMeds = meds.where((m) => m.active).toList();
           final schedules = schedulesAsync.valueOrNull ?? [];
-          final scheduleByMedicationId = {
-            for (final s in schedules) s.medicationId: s
-          };
+          // A medication can have more than one schedule (e.g. a morning
+          // period and a separate evening period with their own date
+          // ranges) - group instead of keying a single value per medication
+          // id, which used to silently keep only the last one encountered.
+          final schedulesByMedicationId = <String, List<MedicationSchedule>>{};
+          for (final s in schedules) {
+            schedulesByMedicationId.putIfAbsent(s.medicationId, () => []).add(s);
+          }
 
           return RefreshIndicator(
             onRefresh: () => refreshAllData(ref),
@@ -208,10 +213,19 @@ class TreatmentListScreen extends ConsumerWidget {
                         spacing: 12,
                         children: activeMeds.map((med) {
                           final formColor = _getFormColor(med.form);
-                          final schedule = scheduleByMedicationId[med.id];
-                          final frequencyLabel = _getFrequencyLabel(schedule);
-                          final reminderActive = schedule != null &&
-                              (schedule.notifyUser1 || schedule.notifyUser2);
+                          final medSchedules =
+                              schedulesByMedicationId[med.id] ?? [];
+                          final frequencyLabel = _getFrequencyLabel(
+                            medSchedules.isEmpty ? null : medSchedules.first,
+                          );
+                          final reminderActive = medSchedules.any(
+                            (s) => s.notifyUser1 || s.notifyUser2,
+                          );
+                          final allReminderTimes = medSchedules
+                              .expand((s) => s.reminderTimes)
+                              .toSet()
+                              .toList()
+                            ..sort();
 
                           return GestureDetector(
                             onTap: () =>
@@ -276,8 +290,7 @@ class TreatmentListScreen extends ConsumerWidget {
                                     spacing: 8,
                                     runSpacing: 8,
                                     children: [
-                                      if (schedule != null)
-                                        ...schedule.reminderTimes.map(
+                                      ...allReminderTimes.map(
                                           (time) => Container(
                                             padding: const EdgeInsets.symmetric(
                                                 horizontal: 8, vertical: 6),

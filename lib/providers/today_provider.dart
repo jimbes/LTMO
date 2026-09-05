@@ -67,11 +67,10 @@ List<TodayEvent> _buildTodayEvents(
 
   // Add medications due today
   for (final schedule in schedules) {
-    // When a schedule is linked to a journey stage, the stage's own date
-    // range governs whether it's due today - not the schedule's own dates
-    // (which are otherwise ignored once linked). Without this, a medication
-    // whose stage hasn't started yet, or already ended, still showed up
-    // here forever since it has no end date of its own.
+    // A schedule's own start/end date always governs visibility - a linked
+    // journey stage is purely an informational tag (see schedule_due.dart).
+    // Picking a stage in the medication form only pre-fills a suggested end
+    // date at that moment; it doesn't keep syncing afterward.
     final isDueToday = isScheduleDueOn(schedule, stages, today);
 
     if (isDueToday) {
