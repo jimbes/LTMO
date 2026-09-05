@@ -70,21 +70,19 @@ class JourneyNotifier extends StateNotifier<AsyncValue<void>> {
   final Ref ref;
 
   /// Recomputes start/end dates for a chain of stages, ordered start to finish.
-  /// Every stage except the last one gets its end date derived from its
-  /// duration, UNLESS `manualEndDate` is set (user override), in which case
-  /// its own end date is kept as-is. The next stage starts the day AFTER
-  /// whatever end date resulted (a stage ending on D doesn't overlap with
-  /// the one starting the same day), UNLESS that next stage has
-  /// `manualStartDate` set, in which case its own start date is kept as-is
-  /// (e.g. a finished stage is followed by a gap before the next one starts
-  /// on a specific future date). The last stage always keeps a manually set
-  /// end date (only meaningful once done).
+  /// Every stage's end date is derived from its duration, UNLESS
+  /// `manualEndDate` is set (user override - available for every stage,
+  /// including the last one), in which case its own end date is kept as-is.
+  /// The next stage starts the day AFTER whatever end date resulted (a
+  /// stage ending on D doesn't overlap with the one starting the same day),
+  /// UNLESS that next stage has `manualStartDate` set, in which case its own
+  /// start date is kept as-is (e.g. a finished stage is followed by a gap
+  /// before the next one starts on a specific future date).
   List<JourneyStage> _recomputeChain(List<JourneyStage> stages) {
     final result = <JourneyStage>[];
     DateTime? previousEnd;
 
     for (var i = 0; i < stages.length; i++) {
-      final isLast = i == stages.length - 1;
       var stage = stages[i];
 
       if (stage.status == 'skipped') {
@@ -104,15 +102,14 @@ class JourneyNotifier extends StateNotifier<AsyncValue<void>> {
                   : stage.startDate));
 
       DateTime? end;
-      if (!isLast && !stage.manualEndDate) {
+      if (!stage.manualEndDate) {
         final days = stage.durationDays ?? 1;
         end = DateTime(start.year, start.month, start.day)
             .add(Duration(days: days));
       } else {
-        // Last stage, or a non-last stage with a manual end date override:
-        // keep the manually set end date, unless an upstream change pushed
-        // this stage's start date past it (which would make it invalid -
-        // end before start).
+        // Manual end date override: keep it as-is, unless an upstream
+        // change pushed this stage's start date past it (which would make
+        // it invalid - end before start).
         end = stage.endDate;
         if (end != null && end.isBefore(start)) {
           end = null;
