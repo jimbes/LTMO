@@ -10,6 +10,7 @@ import '../../providers/journey_provider.dart';
 import '../../providers/data_refresh.dart';
 import '../../models/medication_taken_log.dart';
 import '../../utils/schedule_due.dart';
+import '../../widgets/cycle_day_badge.dart';
 
 class AgendaScreen extends ConsumerStatefulWidget {
   /// Day to open on, e.g. when navigated to from the home screen's "see
@@ -488,15 +489,24 @@ class _AgendaScreenState extends ConsumerState<AgendaScreen> {
                                                   CrossAxisAlignment.start,
                                               spacing: 8,
                                               children: [
-                                                Text(
-                                                  dayLabel,
-                                                  style: AppTypography
-                                                      .labelSmall
-                                                      .copyWith(
-                                                    color:
-                                                        AppColors.inkTertiary,
-                                                    letterSpacing: 0.5,
-                                                  ),
+                                                Row(
+                                                  children: [
+                                                    Text(
+                                                      dayLabel,
+                                                      style: AppTypography
+                                                          .labelSmall
+                                                          .copyWith(
+                                                        color: AppColors
+                                                            .inkTertiary,
+                                                        letterSpacing: 0.5,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    CycleDayBadge(
+                                                      date: date,
+                                                      compact: true,
+                                                    ),
+                                                  ],
                                                 ),
                                                 if (events.isEmpty)
                                                   Container(

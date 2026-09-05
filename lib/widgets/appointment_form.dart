@@ -6,6 +6,7 @@ import '../providers/journey_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_typography.dart';
 import '../utils/phase_labels.dart';
+import 'cycle_day_badge.dart';
 import 'reminder_offsets_picker.dart';
 
 String _stageOptionLabel(JourneyStage stage) {
@@ -290,12 +291,18 @@ class _AppointmentFormState extends ConsumerState<AppointmentForm> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'DATE',
-                    style: AppTypography.labelSmall.copyWith(
-                      color: AppColors.inkTertiary,
-                      letterSpacing: 0.5,
-                    ),
+                  Row(
+                    children: [
+                      Text(
+                        'DATE',
+                        style: AppTypography.labelSmall.copyWith(
+                          color: AppColors.inkTertiary,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      CycleDayBadge(date: _selectedDate, compact: true),
+                    ],
                   ),
                   const SizedBox(height: 12),
                   GestureDetector(

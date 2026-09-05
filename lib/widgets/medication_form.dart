@@ -7,6 +7,7 @@ import '../theme/app_typography.dart';
 import '../providers/journey_provider.dart';
 import '../models/journey_stage.dart';
 import '../utils/phase_labels.dart';
+import 'cycle_day_badge.dart';
 import 'reminder_offsets_picker.dart';
 
 typedef MedicationFormCallback = Future<void> Function(
@@ -484,12 +485,20 @@ class _MedicationFormState extends ConsumerState<MedicationForm> {
         // End date - what actually governs when this medication stops
         // showing up in the agenda. Leave empty for an ongoing treatment;
         // set/adjust it any time (e.g. after a doctor's visit).
-        Text(
-          'DATE DE FIN (OPTIONNELLE)',
-          style: AppTypography.labelSmall.copyWith(
-            color: AppColors.inkTertiary,
-            letterSpacing: 0.5,
-          ),
+        Row(
+          children: [
+            Text(
+              'DATE DE FIN (OPTIONNELLE)',
+              style: AppTypography.labelSmall.copyWith(
+                color: AppColors.inkTertiary,
+                letterSpacing: 0.5,
+              ),
+            ),
+            if (_selectedEndDate != null) ...[
+              const SizedBox(width: 8),
+              CycleDayBadge(date: _selectedEndDate!, compact: true),
+            ],
+          ],
         ),
         const SizedBox(height: 12),
         GestureDetector(

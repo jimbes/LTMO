@@ -6,6 +6,7 @@ import '../../providers/journey_provider.dart';
 import '../../providers/treatment_cycle_provider.dart';
 import '../../models/journey_stage.dart';
 import '../../utils/phase_labels.dart';
+import '../../widgets/cycle_day_badge.dart';
 import 'cycle_history_screen.dart';
 
 String displayLabelForStage(JourneyStage stage) {
@@ -288,14 +289,25 @@ class ConfigureJourneyScreen extends ConsumerWidget {
                                             ),
                                           ),
                                           const SizedBox(height: 4),
-                                          Text(
-                                            'Du ${stage.startDate.day}/${stage.startDate.month}/${stage.startDate.year}'
-                                            '${stage.endDate != null ? ' au ${stage.endDate!.day}/${stage.endDate!.month}/${stage.endDate!.year}' : ''}'
-                                            '${!isLast && stage.durationDays != null ? ' (${stage.durationDays} j)' : ''}',
-                                            style: AppTypography.bodySmall
-                                                .copyWith(
-                                              color: AppColors.inkTertiary,
-                                            ),
+                                          Wrap(
+                                            crossAxisAlignment:
+                                                WrapCrossAlignment.center,
+                                            spacing: 6,
+                                            children: [
+                                              Text(
+                                                'Du ${stage.startDate.day}/${stage.startDate.month}/${stage.startDate.year}'
+                                                '${stage.endDate != null ? ' au ${stage.endDate!.day}/${stage.endDate!.month}/${stage.endDate!.year}' : ''}'
+                                                '${!isLast && stage.durationDays != null ? ' (${stage.durationDays} j)' : ''}',
+                                                style: AppTypography.bodySmall
+                                                    .copyWith(
+                                                  color: AppColors.inkTertiary,
+                                                ),
+                                              ),
+                                              CycleDayBadge(
+                                                date: stage.startDate,
+                                                compact: true,
+                                              ),
+                                            ],
                                           ),
                                           const SizedBox(height: 4),
                                           Container(
@@ -579,7 +591,13 @@ class _EditStageSheetState extends ConsumerState<_EditStageSheet> {
             // Start date selector: always editable for the first stage; for
             // chained stages it's computed from the previous stage's end
             // date, unless "date de début manuelle" is turned on below.
-            Text('Date de début', style: AppTypography.labelMedium),
+            Row(
+              children: [
+                Text('Date de début', style: AppTypography.labelMedium),
+                const SizedBox(width: 8),
+                CycleDayBadge(date: _selectedStartDate, compact: true),
+              ],
+            ),
             const SizedBox(height: 8),
             GestureDetector(
               onTap: _canEditStartDate ? _selectStartDate : null,
@@ -664,7 +682,15 @@ class _EditStageSheetState extends ConsumerState<_EditStageSheet> {
                   ),
                 ),
               ] else ...[
-                Text('Date de fin', style: AppTypography.labelMedium),
+                Row(
+                  children: [
+                    Text('Date de fin', style: AppTypography.labelMedium),
+                    if (_selectedEndDate != null) ...[
+                      const SizedBox(width: 8),
+                      CycleDayBadge(date: _selectedEndDate!, compact: true),
+                    ],
+                  ],
+                ),
                 const SizedBox(height: 8),
                 GestureDetector(
                   onTap: _selectEndDate,
@@ -743,7 +769,16 @@ class _EditStageSheetState extends ConsumerState<_EditStageSheet> {
                 ),
               const SizedBox(height: 24),
             ] else ...[
-              Text('Date de fin (optionnelle)', style: AppTypography.labelMedium),
+              Row(
+                children: [
+                  Text('Date de fin (optionnelle)',
+                      style: AppTypography.labelMedium),
+                  if (_selectedEndDate != null) ...[
+                    const SizedBox(width: 8),
+                    CycleDayBadge(date: _selectedEndDate!, compact: true),
+                  ],
+                ],
+              ),
               const SizedBox(height: 8),
               GestureDetector(
                 onTap: _selectEndDate,
