@@ -7,6 +7,7 @@ import '../../theme/app_typography.dart';
 import '../../providers/appointment_provider.dart';
 import '../../models/appointment.dart';
 import '../../widgets/appointment_form.dart' show appointmentTypeLabels;
+import '../../widgets/cycle_day_badge.dart';
 
 /// All of the couple's appointments, grouped by type (échographie, prise de
 /// sang, consultation...) - replaces the old "Mes praticiens & cliniques"
@@ -218,12 +219,22 @@ class AllAppointmentsScreen extends ConsumerWidget {
                                     ],
                                   ),
                                 ),
-                                Text(
-                                  DateFormat('d MMM yyyy', 'fr_FR')
-                                      .format(apt.appointmentDate),
-                                  style: AppTypography.bodySmall.copyWith(
-                                    color: AppColors.inkTertiary,
-                                  ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      DateFormat('d MMM yyyy', 'fr_FR')
+                                          .format(apt.appointmentDate),
+                                      style: AppTypography.bodySmall.copyWith(
+                                        color: AppColors.inkTertiary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    CycleDayBadge(
+                                      date: apt.appointmentDate,
+                                      compact: true,
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),

@@ -12,6 +12,7 @@ import '../../providers/medication_logs_provider.dart';
 import '../../providers/data_refresh.dart';
 import '../../widgets/ltmo_card.dart';
 import '../../widgets/ltmo_button.dart';
+import '../../widgets/cycle_day_badge.dart';
 import '../../utils/phase_labels.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -181,23 +182,34 @@ class HomeScreen extends ConsumerWidget {
                                       style: AppTypography.titleMedium,
                                     ),
                                     const SizedBox(height: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 6,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.sage,
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Text(
-                                        'Jour $dayCount',
-                                        style:
-                                            AppTypography.labelSmall.copyWith(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w600,
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 6,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.sage,
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                          child: Text(
+                                            'Jour $dayCount',
+                                            style: AppTypography.labelSmall
+                                                .copyWith(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
                                         ),
-                                      ),
+                                        // Cycle-relative day (e.g. "J12") -
+                                        // distinct from "Jour N" above, which
+                                        // counts from this stage's own start.
+                                        CycleDayBadge(date: today),
+                                      ],
                                     ),
                                   ],
                                 ),
@@ -213,9 +225,15 @@ class HomeScreen extends ConsumerWidget {
                     const SizedBox(height: 24),
 
                     // Today's treatments section
-                    Text(
-                      'À suivre aujourd\'hui',
-                      style: AppTypography.titleLarge,
+                    Row(
+                      children: [
+                        Text(
+                          'À suivre aujourd\'hui',
+                          style: AppTypography.titleLarge,
+                        ),
+                        const SizedBox(width: 8),
+                        CycleDayBadge(date: DateTime.now()),
+                      ],
                     ),
                     const SizedBox(height: 12),
 
