@@ -21,6 +21,14 @@ class AllAppointmentsScreen extends ConsumerWidget {
     return appointmentTypeLabels[type] ?? 'Autre';
   }
 
+  /// The section labels a multi-subject appointment belongs to - one per
+  /// subject, so e.g. an "écho + prise de sang" visit shows up under both
+  /// "Échographie" and "Prise de sang", not just the first one.
+  List<String> _typeLabels(Appointment apt) {
+    if (apt.types.isEmpty) return const ['Autre'];
+    return apt.types.map(_typeLabel).toList();
+  }
+
   void _showEditDeleteSheet(
     BuildContext context,
     WidgetRef ref,
@@ -140,10 +148,13 @@ class AllAppointmentsScreen extends ConsumerWidget {
             );
           }
 
-          // Group by type, each group sorted most-recent-first.
+          // Group by type - a multi-subject appointment is added to every
+          // matching section, not just one. Each group sorted most-recent-first.
           final byType = <String, List<Appointment>>{};
           for (final apt in appointments) {
-            byType.putIfAbsent(_typeLabel(apt.type), () => []).add(apt);
+            for (final label in _typeLabels(apt)) {
+              byType.putIfAbsent(label, () => []).add(apt);
+            }
           }
           for (final list in byType.values) {
             list.sort((a, b) => b.appointmentDate.compareTo(a.appointmentDate));

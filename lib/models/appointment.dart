@@ -28,8 +28,10 @@ class Appointment extends HiveObject {
   @HiveField(7)
   String? description;
 
+  // A visit can cover more than one subject (e.g. écho + prise de sang the
+  // same day) - echo, blood_test, consult, ponction, transfert, other.
   @HiveField(8)
-  String? type; // echo, blood_test, consult, ponction, transfert, other
+  List<String> types;
 
   @HiveField(9)
   bool notifyUser1;
@@ -66,7 +68,7 @@ class Appointment extends HiveObject {
     this.location,
     this.doctorName,
     this.description,
-    this.type,
+    this.types = const [],
     required this.notifyUser1,
     required this.notifyUser2,
     required this.completed,
@@ -85,7 +87,7 @@ class Appointment extends HiveObject {
     String? location,
     String? doctorName,
     String? description,
-    String? type,
+    List<String>? types,
     bool? notifyUser1,
     bool? notifyUser2,
     bool? completed,
@@ -104,7 +106,7 @@ class Appointment extends HiveObject {
       location: location ?? this.location,
       doctorName: doctorName ?? this.doctorName,
       description: description ?? this.description,
-      type: type ?? this.type,
+      types: types ?? this.types,
       notifyUser1: notifyUser1 ?? this.notifyUser1,
       notifyUser2: notifyUser2 ?? this.notifyUser2,
       completed: completed ?? this.completed,
@@ -144,7 +146,10 @@ class Appointment extends HiveObject {
       location: json['location'] as String?,
       doctorName: json['doctor_name'] as String?,
       description: json['description'] as String?,
-      type: json['type'] as String?,
+      types: (json['types'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
       notifyUser1: json['notify_user_1'] as bool? ?? true,
       notifyUser2: json['notify_user_2'] as bool? ?? true,
       completed: json['completed'] as bool? ?? false,
@@ -168,7 +173,7 @@ class Appointment extends HiveObject {
       'location': location,
       'doctor_name': doctorName,
       'description': description,
-      'type': type,
+      'types': types,
       'notify_user_1': notifyUser1,
       'notify_user_2': notifyUser2,
       'completed': completed,

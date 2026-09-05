@@ -8,7 +8,8 @@ import '../../providers/medication_provider.dart';
 import '../../providers/journey_provider.dart';
 import '../../models/appointment.dart';
 import '../../utils/phase_labels.dart';
-import '../../widgets/appointment_form.dart' show appointmentTypeLabels;
+import '../../widgets/appointment_form.dart'
+    show appointmentTypeLabels, appointmentTypes;
 
 /// Shown right after marking a doctor's-visit appointment complete. Doses
 /// and next steps in a real IVF protocol get decided at each visit, not
@@ -30,7 +31,7 @@ class _PostVisitUpdateScreenState extends ConsumerState<PostVisitUpdateScreen> {
   bool _knowsNextDate = false;
   DateTime _nextDate = DateTime.now().add(const Duration(days: 7));
   TimeOfDay? _nextTime;
-  String _nextType = 'consult';
+  final Set<String> _nextTypes = {'consult'};
   final _nextTitleController = TextEditingController();
   bool _savingNext = false;
 
@@ -63,9 +64,11 @@ class _PostVisitUpdateScreenState extends ConsumerState<PostVisitUpdateScreen> {
             _nextDate.day, _nextTime!.hour, _nextTime!.minute);
       }
 
+      final orderedTypes =
+          appointmentTypes.where(_nextTypes.contains).toList();
       final title = _nextTitleController.text.trim().isNotEmpty
           ? _nextTitleController.text.trim()
-          : appointmentTypeLabels[_nextType]!;
+          : orderedTypes.map((t) => appointmentTypeLabels[t]).join(' + ');
 
       final appointment = Appointment(
         id: now.toString(),
@@ -74,7 +77,7 @@ class _PostVisitUpdateScreenState extends ConsumerState<PostVisitUpdateScreen> {
         appointmentDate:
             DateTime(_nextDate.year, _nextDate.month, _nextDate.day),
         appointmentTime: appointmentTime,
-        type: _nextType,
+        types: orderedTypes,
         notifyUser1: true,
         notifyUser2: true,
         completed: false,
@@ -231,11 +234,17 @@ class _PostVisitUpdateScreenState extends ConsumerState<PostVisitUpdateScreen> {
             spacing: 8,
             runSpacing: 8,
             children: appointmentTypeLabels.entries.map((e) {
-              final isSelected = _nextType == e.key;
+              final isSelected = _nextTypes.contains(e.key);
               return ChoiceChip(
                 label: Text(e.value),
                 selected: isSelected,
-                onSelected: (_) => setState(() => _nextType = e.key),
+                onSelected: (selected) => setState(() {
+                  if (selected) {
+                    _nextTypes.add(e.key);
+                  } else if (_nextTypes.length > 1) {
+                    _nextTypes.remove(e.key);
+                  }
+                }),
                 selectedColor: AppColors.sage,
                 labelStyle: TextStyle(
                   color: isSelected ? Colors.white : AppColors.ink,
@@ -247,7 +256,10 @@ class _PostVisitUpdateScreenState extends ConsumerState<PostVisitUpdateScreen> {
           TextField(
             controller: _nextTitleController,
             decoration: InputDecoration(
-              hintText: appointmentTypeLabels[_nextType],
+              hintText: appointmentTypes
+                  .where(_nextTypes.contains)
+                  .map((t) => appointmentTypeLabels[t])
+                  .join(' + '),
               labelText: 'Titre (optionnel)',
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),

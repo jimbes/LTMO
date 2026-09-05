@@ -81,11 +81,17 @@ class EditAppointmentScreen extends ConsumerWidget {
 
                                 if (!context.mounted) return;
 
-                                // Blood tests alone rarely change the
-                                // treatment plan - that decision happens at
-                                // the consult/echo/procedure that reads the
-                                // result, so skip the wizard for those.
-                                if (appointment.type != 'blood_test') {
+                                // A visit that's purely a blood test rarely
+                                // changes the treatment plan - that decision
+                                // happens at the consult/echo/procedure that
+                                // reads the result, so skip the wizard for
+                                // those. If blood test is combined with
+                                // anything else, the wizard stays relevant.
+                                final isPureBloodTest =
+                                    appointment.types.length == 1 &&
+                                        appointment.types.first ==
+                                            'blood_test';
+                                if (!isPureBloodTest) {
                                   await context
                                       .push('/appointments/post-visit');
                                 }
