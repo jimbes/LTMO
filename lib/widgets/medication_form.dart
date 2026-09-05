@@ -46,6 +46,7 @@ class _MedicationFormState extends ConsumerState<MedicationForm> {
   late bool _reminderEnabled;
   late List<int> _reminderOffsets;
   late String? _selectedJourneyStageId;
+  late DateTime _selectedStartDate;
   late DateTime? _selectedEndDate;
   bool _submitting = false;
 
@@ -79,6 +80,9 @@ class _MedicationFormState extends ConsumerState<MedicationForm> {
     _reminderEnabled = widget.initialSchedule?.notifyUser1 ?? true;
     _reminderOffsets = List.from(widget.initialSchedule?.reminderOffsets ?? [15]);
     _selectedJourneyStageId = widget.initialSchedule?.journeyStageId;
+    final now = DateTime.now();
+    _selectedStartDate = widget.initialSchedule?.startDate ??
+        DateTime(now.year, now.month, now.day);
     _selectedEndDate = widget.initialSchedule?.endDate;
   }
 
@@ -165,9 +169,7 @@ class _MedicationFormState extends ConsumerState<MedicationForm> {
       return;
     }
 
-    final effectiveStartDate = widget.initialSchedule?.startDate ??
-        DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
-    if (_selectedEndDate != null && _selectedEndDate!.isBefore(effectiveStartDate)) {
+    if (_selectedEndDate != null && _selectedEndDate!.isBefore(_selectedStartDate)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('La date de fin doit être après la date de début'),
@@ -193,13 +195,6 @@ class _MedicationFormState extends ConsumerState<MedicationForm> {
         updatedAt: now,
       );
 
-      // Create start date at midnight (00:00:00) to ensure proper filtering
-      final todayAtMidnight = DateTime(
-        DateTime.now().year,
-        DateTime.now().month,
-        DateTime.now().day,
-      );
-
       final schedule = MedicationSchedule(
         id: widget.initialSchedule?.id ?? DateTime.now().toString(),
         medicationId: medication.id,
@@ -214,7 +209,7 @@ class _MedicationFormState extends ConsumerState<MedicationForm> {
         reminderOffsets: _reminderOffsets,
         notifyUser1: _reminderEnabled,
         notifyUser2: _reminderEnabled,
-        startDate: widget.initialSchedule?.startDate ?? todayAtMidnight,
+        startDate: _selectedStartDate,
         endDate: _selectedEndDate,
         createdAt: widget.initialSchedule?.createdAt ?? now,
         updatedAt: now,
@@ -455,14 +450,15 @@ class _MedicationFormState extends ConsumerState<MedicationForm> {
                     setState(() {
                       _selectedJourneyStageId = value;
                       // Convenience default only, not a lasting link: picking
-                      // a stage suggests stopping the treatment when that
-                      // stage ends, but the date stays freely editable below
-                      // right after - e.g. if treatment gets extended past
-                      // what the stage originally planned, or the couple
-                      // moves on to a different stage than expected.
+                      // a stage suggests running the treatment for that
+                      // stage's span, but both dates stay freely editable
+                      // below right after - e.g. if treatment gets extended
+                      // past what the stage originally planned, or the
+                      // couple moves on to a different stage than expected.
                       if (value != null) {
                         final stage = stages.where((s) => s.id == value).toList();
                         if (stage.isNotEmpty) {
+                          _selectedStartDate = stage.first.startDate;
                           _selectedEndDate = stage.first.endDate;
                         }
                       }
@@ -479,6 +475,55 @@ class _MedicationFormState extends ConsumerState<MedicationForm> {
               ),
             );
           },
+        ),
+        const SizedBox(height: 24),
+
+        // Start date - the other half of what governs when this medication
+        // shows up in the agenda, alongside the end date below.
+        Row(
+          children: [
+            Text(
+              'DATE DE DÉBUT',
+              style: AppTypography.labelSmall.copyWith(
+                color: AppColors.inkTertiary,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(width: 8),
+            CycleDayBadge(date: _selectedStartDate, compact: true),
+          ],
+        ),
+        const SizedBox(height: 12),
+        GestureDetector(
+          onTap: () async {
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: _selectedStartDate,
+              firstDate: DateTime(2020),
+              lastDate: DateTime.now().add(const Duration(days: 730)),
+            );
+            if (picked != null) {
+              setState(() => _selectedStartDate = picked);
+            }
+          },
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+            decoration: BoxDecoration(
+              border: Border.all(color: AppColors.border1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '${_selectedStartDate.day}/${_selectedStartDate.month}/${_selectedStartDate.year}',
+                  style: AppTypography.bodyMedium.copyWith(color: AppColors.ink),
+                ),
+                const Icon(Icons.calendar_today, size: 18),
+              ],
+            ),
+          ),
         ),
         const SizedBox(height: 24),
 
