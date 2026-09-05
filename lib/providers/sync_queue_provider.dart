@@ -67,6 +67,11 @@ class SyncQueueNotifier extends StateNotifier<AsyncValue<void>> {
         ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
       if (actions.isEmpty) return;
 
+      // Lets the UI show a "synchronisation en cours" indicator distinct
+      // from the offline banner - this used to just sit in `data(null)`
+      // the whole time, so nothing could ever observe an active sync.
+      state = const AsyncValue.loading();
+
       final touchedEntityTypes = <String>{};
 
       for (final action in actions) {
@@ -103,6 +108,10 @@ class SyncQueueNotifier extends StateNotifier<AsyncValue<void>> {
       }
     } finally {
       _processing = false;
+      // Unconditional, even on an unexpected error escaping the loop above -
+      // otherwise the UI could get stuck showing "synchronisation en cours"
+      // forever.
+      state = const AsyncValue.data(null);
     }
   }
 

@@ -10,6 +10,7 @@ import '../../models/appointment.dart';
 import '../../utils/phase_labels.dart';
 import '../../widgets/appointment_form.dart'
     show appointmentTypeLabels, appointmentTypes;
+import '../../widgets/cycle_day_badge.dart';
 
 /// Shown right after marking a doctor's-visit appointment complete. Doses
 /// and next steps in a real IVF protocol get decided at each visit, not
@@ -288,6 +289,8 @@ class _PostVisitUpdateScreenState extends ConsumerState<PostVisitUpdateScreen> {
                   ),
                 ),
               ),
+              const SizedBox(width: 12),
+              CycleDayBadge(date: _nextDate, compact: true),
             ],
           ),
         ],
@@ -372,11 +375,20 @@ class _PostVisitUpdateScreenState extends ConsumerState<PostVisitUpdateScreen> {
                         children: [
                           Text(med.name, style: AppTypography.titleSmall),
                           const SizedBox(height: 2),
-                          Text(
-                            '${med.dosage} ${med.unit}'
-                            '${schedule.endDate != null ? " · jusqu'au ${schedule.endDate!.day}/${schedule.endDate!.month}/${schedule.endDate!.year}" : ' · en cours'}',
-                            style: AppTypography.bodySmall
-                                .copyWith(color: AppColors.inkTertiary),
+                          Row(
+                            children: [
+                              Text(
+                                '${med.dosage} ${med.unit}'
+                                '${schedule.endDate != null ? " · jusqu'au ${schedule.endDate!.day}/${schedule.endDate!.month}/${schedule.endDate!.year}" : ' · en cours'}',
+                                style: AppTypography.bodySmall
+                                    .copyWith(color: AppColors.inkTertiary),
+                              ),
+                              if (schedule.endDate != null) ...[
+                                const SizedBox(width: 6),
+                                CycleDayBadge(
+                                    date: schedule.endDate!, compact: true),
+                              ],
+                            ],
                           ),
                           const SizedBox(height: 10),
                           Row(

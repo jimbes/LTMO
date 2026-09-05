@@ -217,6 +217,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold>
   Widget build(BuildContext context) {
     final isOnline = ref.watch(isOnlineProvider);
     final pendingCount = ref.watch(pendingActionsProvider).valueOrNull?.length ?? 0;
+    final isSyncing = ref.watch(syncQueueProvider).isLoading;
 
     // Sync immediately the moment connectivity comes back, instead of
     // waiting for the next 30s tick.
@@ -254,6 +255,33 @@ class _MainScaffoldState extends ConsumerState<MainScaffold>
                       : 'Connexion perdue - vos modifications seront synchronisées automatiquement',
                   style: const TextStyle(color: Colors.white, fontSize: 13),
                   textAlign: TextAlign.center,
+                ),
+              ),
+            )
+          else if (isSyncing)
+            Container(
+              width: double.infinity,
+              color: LtmoColors.sauge,
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              child: const SafeArea(
+                bottom: false,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Synchronisation en cours...',
+                      style: TextStyle(color: Colors.white, fontSize: 13),
+                    ),
+                  ],
                 ),
               ),
             ),
