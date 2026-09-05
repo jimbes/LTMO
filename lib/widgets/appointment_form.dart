@@ -55,7 +55,7 @@ class _AppointmentFormState extends ConsumerState<AppointmentForm> {
   late TextEditingController _clinicController;
   late TextEditingController _notesController;
 
-  late String _selectedType;
+  late Set<String> _selectedTypes;
   late DateTime _selectedDate;
   late TimeOfDay _selectedTime;
   late bool _reminderEnabled;
@@ -71,7 +71,9 @@ class _AppointmentFormState extends ConsumerState<AppointmentForm> {
         TextEditingController(text: apt?.doctorName ?? '');
     _clinicController = TextEditingController(text: apt?.location ?? '');
     _notesController = TextEditingController(text: apt?.description ?? '');
-    _selectedType = apt?.type ?? 'echo';
+    _selectedTypes = apt != null && apt.types.isNotEmpty
+        ? Set.from(apt.types)
+        : {'echo'};
     _selectedDate = apt?.appointmentDate ?? DateTime.now();
     _selectedTime = apt?.appointmentTime != null
         ? TimeOfDay(
@@ -150,14 +152,22 @@ class _AppointmentFormState extends ConsumerState<AppointmentForm> {
     final now = DateTime.now();
     final apt = widget.initialAppointment;
 
+    // Stable order (matches the type picker), not the Set's arbitrary
+    // iteration order - otherwise the auto-generated title could reorder
+    // itself between saves for the same selection.
+    final orderedTypes =
+        appointmentTypes.where(_selectedTypes.contains).toList();
+    final typesLabel =
+        orderedTypes.map((t) => appointmentTypeLabels[t]).join(' + ');
+
     final appointment = Appointment(
       id: apt?.id ?? DateTime.now().toString(),
       coupleId: apt?.coupleId ?? '',
-      title: '${appointmentTypeLabels[_selectedType]} - '
+      title: '$typesLabel - '
           '${_practitionerController.text.isNotEmpty ? _practitionerController.text : "Rendez-vous"}',
       appointmentDate: _selectedDate,
       appointmentTime: appointmentDateTime,
-      type: _selectedType,
+      types: orderedTypes,
       reminderOffsets: _reminderEnabled ? _reminderOffsets : [],
       location:
           _clinicController.text.isNotEmpty ? _clinicController.text : null,
@@ -192,15 +202,26 @@ class _AppointmentFormState extends ConsumerState<AppointmentForm> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Type selector
+        // Type selector - a visit can cover more than one subject (e.g.
+        // écho + prise de sang the same day), so this toggles membership in
+        // a set instead of picking a single value. At least one subject
+        // must stay selected.
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: appointmentTypes.map((type) {
-            final isSelected = _selectedType == type;
+            final isSelected = _selectedTypes.contains(type);
             return GestureDetector(
               onTap: () {
-                setState(() => _selectedType = type);
+                setState(() {
+                  if (isSelected) {
+                    if (_selectedTypes.length > 1) {
+                      _selectedTypes.remove(type);
+                    }
+                  } else {
+                    _selectedTypes.add(type);
+                  }
+                });
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(

@@ -25,7 +25,7 @@ class AppointmentAdapter extends TypeAdapter<Appointment> {
       location: fields[5] as String?,
       doctorName: fields[6] as String?,
       description: fields[7] as String?,
-      type: fields[8] as String?,
+      types: (fields[8] as List).cast<String>(),
       notifyUser1: fields[9] as bool,
       notifyUser2: fields[10] as bool,
       completed: fields[11] as bool,
@@ -57,7 +57,7 @@ class AppointmentAdapter extends TypeAdapter<Appointment> {
       ..writeByte(7)
       ..write(obj.description)
       ..writeByte(8)
-      ..write(obj.type)
+      ..write(obj.types)
       ..writeByte(9)
       ..write(obj.notifyUser1)
       ..writeByte(10)
