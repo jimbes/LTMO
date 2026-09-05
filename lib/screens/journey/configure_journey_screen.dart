@@ -41,6 +41,17 @@ String statusLabelFor(String status) {
   }
 }
 
+/// Duration in days, shown regardless of whether it was entered directly
+/// (duration mode) or derived from an explicit end date (manual mode) - the
+/// two are numerically identical for a stage saved in duration mode, since
+/// `end = start + durationDays` there (see JourneyNotifier._recomputeChain).
+int? stageDurationDays(JourneyStage stage) {
+  if (stage.endDate != null) {
+    return stage.endDate!.difference(stage.startDate).inDays;
+  }
+  return stage.durationDays;
+}
+
 class ConfigureJourneyScreen extends ConsumerWidget {
   const ConfigureJourneyScreen({super.key});
 
@@ -228,6 +239,7 @@ class ConfigureJourneyScreen extends ConsumerWidget {
                           final stage = stages[index];
                           final isLast = index == stages.length - 1;
                           final status = stage.status;
+                          final durationDays = stageDurationDays(stage);
 
                           return Padding(
                             key: ValueKey(stage.id),
@@ -297,7 +309,7 @@ class ConfigureJourneyScreen extends ConsumerWidget {
                                               Text(
                                                 'Du ${stage.startDate.day}/${stage.startDate.month}/${stage.startDate.year}'
                                                 '${stage.endDate != null ? ' au ${stage.endDate!.day}/${stage.endDate!.month}/${stage.endDate!.year}' : ''}'
-                                                '${!isLast && stage.durationDays != null ? ' (${stage.durationDays} j)' : ''}',
+                                                '${durationDays != null ? ' (${durationDays}j)' : ''}',
                                                 style: AppTypography.bodySmall
                                                     .copyWith(
                                                   color: AppColors.inkTertiary,
@@ -397,7 +409,6 @@ class _EditStageSheetState extends ConsumerState<_EditStageSheet> {
   late int _durationDays;
   late bool _manualEndDate;
   late bool _manualStartDate;
-  bool _showMoreOptions = false;
   bool _saving = false;
 
   bool get _canEditStartDate => widget.stage.order == 0 || _manualStartDate;
@@ -409,11 +420,11 @@ class _EditStageSheetState extends ConsumerState<_EditStageSheet> {
     _selectedStartDate = widget.stage.startDate;
     _selectedStatus = widget.stage.status;
     _selectedEndDate = widget.stage.endDate;
-    _durationDays = widget.stage.durationDays ?? 3;
-    // The last stage always uses a manual end date; for other stages this
-    // reflects whether the user explicitly overrode the computed one.
-    _manualEndDate = widget.isLast || widget.stage.manualEndDate;
-    _showMoreOptions = !widget.isLast && widget.stage.manualEndDate;
+    _durationDays = widget.stage.durationDays ?? stageDurationDays(widget.stage) ?? 3;
+    // Whether this stage's end is entered as an explicit date or as a
+    // number of days from the start - available for every stage, including
+    // the last one (e.g. "Attente & Test" often has no fixed length yet).
+    _manualEndDate = widget.stage.manualEndDate;
     // Only meaningful for non-first stages: whether this stage's start date
     // is pinned by the user instead of chained to the previous stage's end.
     _manualStartDate = widget.stage.manualStartDate;
@@ -458,9 +469,7 @@ class _EditStageSheetState extends ConsumerState<_EditStageSheet> {
   Future<void> _saveChanges() async {
     setState(() => _saving = true);
     try {
-      final isManual = widget.isLast || _manualEndDate;
-      final endDateValue = isManual ? _selectedEndDate : null;
-      final durationValue = widget.isLast ? null : _durationDays;
+      final endDateValue = _manualEndDate ? _selectedEndDate : null;
       final trimmedName = _nameController.text.trim();
       final defaultLabel = getPhaseLabel(widget.stage.type);
       final customNameValue =
@@ -473,9 +482,11 @@ class _EditStageSheetState extends ConsumerState<_EditStageSheet> {
         status: _selectedStatus,
         endDate: endDateValue,
         clearEndDate: endDateValue == null,
-        durationDays: durationValue,
-        clearDurationDays: durationValue == null,
-        manualEndDate: isManual,
+        // Kept even in manual-end-date mode (not just cleared to null) so
+        // switching back to duration mode later doesn't lose the last
+        // number of days the user had dialed in.
+        durationDays: _durationDays,
+        manualEndDate: _manualEndDate,
         manualStartDate: _manualStartDate,
         customName: customNameValue,
         clearCustomName: customNameValue == null,
@@ -648,143 +659,124 @@ class _EditStageSheetState extends ConsumerState<_EditStageSheet> {
               ),
             const SizedBox(height: 24),
 
-            // Duration (non-last stages) or manual end date (last stage)
-            if (!widget.isLast) ...[
-              if (!_manualEndDate) ...[
-                Text('Durée (jours)', style: AppTypography.labelMedium),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    IconButton(
-                      onPressed: () => _changeDuration(-1),
-                      icon: const Icon(Icons.remove_circle_outline),
-                      color: AppColors.sage,
-                    ),
-                    Expanded(
-                      child: Text(
-                        '$_durationDays jour${_durationDays > 1 ? 's' : ''}',
-                        textAlign: TextAlign.center,
-                        style: AppTypography.bodyMedium,
+            // Fin de l'étape - au choix, en nombre de jours depuis le début
+            // ou en date explicite. Disponible pour toutes les étapes, y
+            // compris la dernière (ex: "Attente & Test" n'a pas toujours une
+            // durée connue à l'avance).
+            Text('Fin de l\'étape', style: AppTypography.labelMedium),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _manualEndDate = false),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
                       ),
-                    ),
-                    IconButton(
-                      onPressed: () => _changeDuration(1),
-                      icon: const Icon(Icons.add_circle_outline),
-                      color: AppColors.sage,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Date de fin calculée automatiquement',
-                  style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.inkTertiary,
-                  ),
-                ),
-              ] else ...[
-                Row(
-                  children: [
-                    Text('Date de fin', style: AppTypography.labelMedium),
-                    if (_selectedEndDate != null) ...[
-                      const SizedBox(width: 8),
-                      CycleDayBadge(date: _selectedEndDate!, compact: true),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 8),
-                GestureDetector(
-                  onTap: _selectEndDate,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 12, horizontal: 12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: AppColors.border1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          _selectedEndDate != null
-                              ? '${_selectedEndDate!.day}/${_selectedEndDate!.month}/${_selectedEndDate!.year}'
-                              : 'Non définie',
-                          style: AppTypography.bodyMedium.copyWith(
-                            color: _selectedEndDate != null
-                                ? AppColors.ink
-                                : AppColors.inkTertiary,
+                      decoration: BoxDecoration(
+                        color: !_manualEndDate
+                            ? AppColors.sageBgLight
+                            : Colors.transparent,
+                        border: Border.all(color: AppColors.border1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Center(
+                        child: Text(
+                          'Nombre de jours',
+                          style: AppTypography.bodySmall.copyWith(
+                            color: !_manualEndDate
+                                ? AppColors.sage
+                                : AppColors.ink,
+                            fontWeight: !_manualEndDate
+                                ? FontWeight.w600
+                                : FontWeight.normal,
                           ),
                         ),
-                        const Icon(Icons.calendar_today),
-                      ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => setState(() {
+                      _manualEndDate = true;
+                      _selectedEndDate ??= _selectedStartDate
+                          .add(Duration(days: _durationDays));
+                    }),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _manualEndDate
+                            ? AppColors.sageBgLight
+                            : Colors.transparent,
+                        border: Border.all(color: AppColors.border1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Center(
+                        child: Text(
+                          'Date de fin',
+                          style: AppTypography.bodySmall.copyWith(
+                            color: _manualEndDate
+                                ? AppColors.sage
+                                : AppColors.ink,
+                            fontWeight: _manualEndDate
+                                ? FontWeight.w600
+                                : FontWeight.normal,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ],
-              const SizedBox(height: 12),
-
-              // "More options" — lets the user override the auto-computed
-              // end date for a non-last stage instead of using the duration.
-              InkWell(
-                onTap: () =>
-                    setState(() => _showMoreOptions = !_showMoreOptions),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _showMoreOptions
-                            ? Icons.expand_less
-                            : Icons.expand_more,
-                        color: AppColors.inkTertiary,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Plus d\'options',
-                        style: AppTypography.labelMedium.copyWith(
-                          color: AppColors.inkTertiary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              if (_showMoreOptions)
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Définir une date de fin manuelle'),
-                  subtitle: const Text(
-                    'Sinon, elle est calculée à partir de la durée',
-                  ),
-                  value: _manualEndDate,
-                  activeThumbColor: AppColors.sage,
-                  onChanged: (value) {
-                    setState(() {
-                      _manualEndDate = value;
-                      if (value) {
-                        _selectedEndDate ??= _selectedStartDate
-                            .add(Duration(days: _durationDays));
-                      }
-                    });
-                  },
-                ),
-              const SizedBox(height: 24),
-            ] else ...[
+            ),
+            const SizedBox(height: 12),
+            if (!_manualEndDate) ...[
               Row(
                 children: [
-                  Text('Date de fin (optionnelle)',
-                      style: AppTypography.labelMedium),
-                  if (_selectedEndDate != null) ...[
-                    const SizedBox(width: 8),
-                    CycleDayBadge(date: _selectedEndDate!, compact: true),
-                  ],
+                  IconButton(
+                    onPressed: () => _changeDuration(-1),
+                    icon: const Icon(Icons.remove_circle_outline),
+                    color: AppColors.sage,
+                  ),
+                  Expanded(
+                    child: Text(
+                      '$_durationDays jour${_durationDays > 1 ? 's' : ''}',
+                      textAlign: TextAlign.center,
+                      style: AppTypography.bodyMedium,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => _changeDuration(1),
+                    icon: const Icon(Icons.add_circle_outline),
+                    color: AppColors.sage,
+                  ),
                 ],
               ),
               const SizedBox(height: 8),
+              Text(
+                'Date de fin calculée automatiquement',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.inkTertiary,
+                ),
+              ),
+            ] else ...[
+              if (_selectedEndDate != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: CycleDayBadge(date: _selectedEndDate!, compact: true),
+                ),
               GestureDetector(
                 onTap: _selectEndDate,
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                  padding: const EdgeInsets.symmetric(
+                      vertical: 12, horizontal: 12),
                   decoration: BoxDecoration(
                     border: Border.all(color: AppColors.border1),
                     borderRadius: BorderRadius.circular(12),
@@ -807,8 +799,8 @@ class _EditStageSheetState extends ConsumerState<_EditStageSheet> {
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
             ],
+            const SizedBox(height: 24),
 
             // Status selector
             Text('Statut', style: AppTypography.labelMedium),
